@@ -35,7 +35,8 @@ import (
 	"time"
 
 	"github.com/fido-device-onboard/go-fdo"
-	"github.com/fido-device-onboard/go-fdo/cbor"
+	"github.com/fido-device-onboard/go-fdo-server/cmd/db"
+	"github.com/fido-device-onboard/go-fdo-server/cmd/rvinfo"
 	"github.com/fido-device-onboard/go-fdo/fsim"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
@@ -153,7 +154,7 @@ func server() error {
 	useTLS = insecureTLS
 
 	// RV Info
-	rvInfo, host, port, err := createRvInfo(useTLS, extAddr, addr)
+	rvInfo, host, port, err := rvinfo.CreateRvInfo(useTLS, extAddr, addr, rvBypass)
 	if err != nil {
 		return err
 	}
@@ -167,7 +168,7 @@ func server() error {
 
 func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 
-	err := initDb(state)
+	err := db.InitDb(state)
 	if err != nil {
 		return err
 	}
@@ -228,14 +229,6 @@ func registerRvBlob(host string, port uint16, state *sqlite.DB) error {
 	slog.Debug("to0 refresh", "duration", time.Duration(refresh)*time.Second)
 
 	return nil
-}
-
-func mustMarshal(v any) []byte {
-	data, err := cbor.Marshal(v)
-	if err != nil {
-		panic(err.Error())
-	}
-	return data
 }
 
 //nolint:gocyclo

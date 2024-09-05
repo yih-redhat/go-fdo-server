@@ -1,37 +1,21 @@
-package main
+package utils
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 
 	"github.com/fido-device-onboard/go-fdo"
+	"github.com/fido-device-onboard/go-fdo/cbor"
 )
 
-func parseRequestBody(r *http.Request) (Data, error) {
-	var data Data
-	contentType := r.Header.Get("Content-Type")
-	if contentType == "text/plain" {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			return data, fmt.Errorf("error reading body: %w", err)
-		}
-		var rawData interface{}
-		if err := json.Unmarshal(body, &rawData); err != nil {
-			return data, fmt.Errorf("error unmarshalling body: %w", err)
-		}
-		data.Value = rawData
-	} else {
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			return data, fmt.Errorf("error decoding JSON: %w", err)
-		}
+func MustMarshal(v any) []byte {
+	data, err := cbor.Marshal(v)
+	if err != nil {
+		panic(err.Error())
 	}
-	return data, nil
+	return data
 }
 
-func logRvVar(index int, key fdo.RvVar, value interface{}) {
+func LogRvVar(index int, key fdo.RvVar, value interface{}) {
 	switch key {
 	case fdo.RVDevOnly:
 		slog.Debug("RV ->", "index", index, "key", "RVDevOnly", "value", value)

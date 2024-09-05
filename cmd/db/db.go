@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"database/sql"
@@ -11,7 +11,7 @@ import (
 
 var db *sql.DB
 
-func initDb(state *sqlite.DB) error {
+func InitDb(state *sqlite.DB) error {
 	db = state.DB()
 	if err := createTable(); err != nil {
 		slog.Error("Failed to create table")
@@ -32,13 +32,13 @@ func createTable() error {
 	return nil
 }
 
-func fetchVoucher(guid []byte) (Voucher, error) {
+func FetchVoucher(guid []byte) (Voucher, error) {
 	var voucher Voucher
 	err := db.QueryRow("SELECT guid, cbor FROM vouchers WHERE guid = ?", guid).Scan(&voucher.GUID, &voucher.CBOR)
 	return voucher, err
 }
 
-func fetchOwnerKeys() ([]OwnerKey, error) {
+func FetchOwnerKeys() ([]OwnerKey, error) {
 	rows, err := db.Query("SELECT type, pkcs8, x509_chain FROM owner_keys")
 	if err != nil {
 		return nil, err
@@ -56,12 +56,12 @@ func fetchOwnerKeys() ([]OwnerKey, error) {
 	return ownerKeys, nil
 }
 
-func insertVoucher(voucher Voucher) error {
+func InsertVoucher(voucher Voucher) error {
 	_, err := db.Exec("INSERT INTO vouchers (guid, cbor) VALUES (?, ?)", voucher.GUID, voucher.CBOR)
 	return err
 }
 
-func updateOwnerKeys(ownerKeys []OwnerKey) error {
+func UpdateOwnerKeys(ownerKeys []OwnerKey) error {
 	for _, ownerKey := range ownerKeys {
 		_, err := db.Exec("UPDATE owner_keys SET pkcs8 = ?, x509_chain = ? WHERE type = ?", ownerKey.PKCS8, ownerKey.X509Chain, ownerKey.Type)
 		if err != nil {
@@ -71,7 +71,7 @@ func updateOwnerKeys(ownerKeys []OwnerKey) error {
 	return nil
 }
 
-func checkDataExists() (bool, error) {
+func CheckDataExists() (bool, error) {
 	var count int
 	err := db.QueryRow("SELECT COUNT(*) FROM rvinfo WHERE id = 1").Scan(&count)
 	if err != nil {
@@ -80,7 +80,7 @@ func checkDataExists() (bool, error) {
 	return count > 0, nil
 }
 
-func insertData(data Data) error {
+func InsertData(data Data) error {
 	value, err := json.Marshal(data.Value)
 	if err != nil {
 		return fmt.Errorf("error marshalling value: %w", err)
@@ -92,7 +92,7 @@ func insertData(data Data) error {
 	return nil
 }
 
-func updateDataInDB(data Data) error {
+func UpdateDataInDB(data Data) error {
 	value, err := json.Marshal(data.Value)
 	if err != nil {
 		return fmt.Errorf("error marshalling value: %w", err)
@@ -104,7 +104,7 @@ func updateDataInDB(data Data) error {
 	return nil
 }
 
-func fetchDataFromDB() (Data, error) {
+func FetchDataFromDB() (Data, error) {
 	var data Data
 	var value string
 	err := db.QueryRow("SELECT value FROM rvinfo WHERE id = 1").Scan(&value)

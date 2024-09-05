@@ -109,10 +109,12 @@ func server() error {
 	if extAddr == "" {
 		extAddr = addr
 	}
+
 	host, portStr, err := net.SplitHostPort(extAddr)
 	if err != nil {
 		return fmt.Errorf("invalid external addr: %w", err)
 	}
+
 	if host == "" {
 		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: mustMarshal(net.IP{127, 0, 0, 1})})
 	} else if hostIP := net.ParseIP(host); hostIP.To4() != nil || hostIP.To16() != nil {
@@ -120,12 +122,14 @@ func server() error {
 	} else {
 		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDns, Value: mustMarshal(host)})
 	}
+
 	portNum, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return fmt.Errorf("invalid external port: %w", err)
 	}
 	port := uint16(portNum)
 	rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDevPort, Value: mustMarshal(port)})
+
 	if rvBypass {
 		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVBypass})
 	}
@@ -134,11 +138,13 @@ func server() error {
 	if to0Guid != "" {
 		return registerRvBlob(host, port, state)
 	}
-
 	return serveHTTP(rvInfo, state)
 }
 
 func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
+
+	initDb(state)
+
 	// Create FDO responder
 	svc, err := newService(rvInfo, state)
 	if err != nil {
@@ -149,6 +155,10 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 	// Handle messages
 	handler := http.NewServeMux()
 	handler.Handle("POST /fdo/101/msg/{msg}", &transport.Handler{Responder: svc})
+	handler.HandleFunc("/api/v1/rvinfo", updateRvInfoHandler(svc, &rvInfo))
+	handler.HandleFunc("/api/v1/vouchers", getVoucherHandler)
+	handler.HandleFunc("/api/v1/owner/vouchers", insertVoucherHandler)
+	log.Println("Starting server on :", addr)
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,

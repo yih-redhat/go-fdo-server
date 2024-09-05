@@ -167,7 +167,10 @@ func server() error {
 
 func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 
-	initDb(state)
+	err := initDb(state)
+	if err != nil {
+		return err
+	}
 
 	// Create FDO responder
 	svc, err := newService(rvInfo, state)

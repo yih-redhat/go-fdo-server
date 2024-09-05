@@ -4,14 +4,32 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/fido-device-onboard/go-fdo/sqlite"
 )
 
 var db *sql.DB
 
-func initDb(state *sqlite.DB) {
+func initDb(state *sqlite.DB) error {
 	db = state.DB()
+	if err := createTable(); err != nil {
+		slog.Error("Failed to create table")
+		return err
+	}
+	return nil
+}
+
+func createTable() error {
+	query := `CREATE TABLE IF NOT EXISTS rvinfo (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		value TEXT
+	);`
+	_, err := db.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func fetchVoucher(guid []byte) (Voucher, error) {

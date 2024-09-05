@@ -72,11 +72,6 @@ func New(filename, password string) (*DB, error) {
 
 	// Ensure tables are created
 	stmts := []string{
-		`CREATE TABLE IF NOT EXISTS rvinfo
-			(
-			id INTEGER PRIMARY KEY CHECK (id = 1),
-			value TEXT
-    		);`,
 		`CREATE TABLE IF NOT EXISTS secrets
 			( type TEXT NOT NULL
 			, secret BLOB NOT NULL

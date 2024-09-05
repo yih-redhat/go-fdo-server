@@ -25,6 +25,22 @@ func NewHTTPHandler(svc *fdo.Server, rvInfo *[][]fdo.RvInstruction) *HTTPHandler
 	return &HTTPHandler{svc: svc, rvInfo: rvInfo}
 }
 
+// healthHandler responds with the version and status
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte("Method not allowed"))
+		return
+	}
+	response := Health{
+		Version: "1.1",
+		Status:  "OK",
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
 // RegisterRoutes registers the routes for the HTTP server
 func (h *HTTPHandler) RegisterRoutes() *http.ServeMux {
 	handler := http.NewServeMux()
@@ -32,6 +48,7 @@ func (h *HTTPHandler) RegisterRoutes() *http.ServeMux {
 	handler.HandleFunc("/api/v1/rvinfo", rvInfoHandler(h.svc, h.rvInfo))
 	handler.HandleFunc("/api/v1/vouchers", getVoucherHandler)
 	handler.HandleFunc("/api/v1/owner/vouchers", insertVoucherHandler)
+	handler.HandleFunc("/health", healthHandler)
 	return handler
 }
 

@@ -14,3 +14,8 @@ type OwnerKey struct {
 	PKCS8     []byte `json:"pkcs8"`
 	X509Chain []byte `json:"x509_chain"`
 }
+
+type Health struct {
+	Version string `json:"version"`
+	Status  string `json:"status"`
+}

@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/fido-device-onboard/go-fdo"
+	"github.com/fido-device-onboard/go-fdo-server/handlers"
 	"github.com/fido-device-onboard/go-fdo/cbor"
 	"github.com/fido-device-onboard/go-fdo/fsim"
 	transport "github.com/fido-device-onboard/go-fdo/http"
@@ -148,6 +149,7 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 
 	// Handle messages
 	handler := http.NewServeMux()
+	handler.Handle("/health", handlers.NewHealth())
 	handler.Handle("POST /fdo/101/msg/{msg}", &transport.Handler{Responder: svc})
 	srv := &http.Server{
 		Addr:              addr,

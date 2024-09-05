@@ -14,16 +14,16 @@ func NewHealth() *Health {
 	return &Health{"1.1", "OK"}
 }
 
-func (h *Health) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (health *Health) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
 
-	if r.Method != http.MethodGet {
-		http.Error(rw, r.Method+" not allowed", http.StatusMethodNotAllowed)
+	if request.Method != http.MethodGet {
+		http.Error(rw, request.Method+" not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	healthCheck, err := json.Marshal(h)
+	healthStatus, err := json.Marshal(health)
 	if err != nil {
 		http.Error(rw, "Health check failed", http.StatusServiceUnavailable)
 	}
-	rw.Write(healthCheck)
+	rw.Write(healthStatus)
 }

@@ -4,24 +4,49 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/fido-device-onboard/go-fdo"
+	transport "github.com/fido-device-onboard/go-fdo/http"
 )
 
-func updateRvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
+var mu sync.Mutex
+
+// HTTPHandler handles HTTP requests
+type HTTPHandler struct {
+	svc    *fdo.Server
+	rvInfo *[][]fdo.RvInstruction
+}
+
+// NewHTTPHandler creates a new HTTPHandler
+func NewHTTPHandler(svc *fdo.Server, rvInfo *[][]fdo.RvInstruction) *HTTPHandler {
+	return &HTTPHandler{svc: svc, rvInfo: rvInfo}
+}
+
+// RegisterRoutes registers the routes for the HTTP server
+func (h *HTTPHandler) RegisterRoutes() *http.ServeMux {
+	handler := http.NewServeMux()
+	handler.Handle("POST /fdo/101/msg/{msg}", &transport.Handler{Responder: h.svc})
+	handler.HandleFunc("/api/v1/rvinfo", rvInfoHandler(h.svc, h.rvInfo))
+	handler.HandleFunc("/api/v1/vouchers", getVoucherHandler)
+	handler.HandleFunc("/api/v1/owner/vouchers", insertVoucherHandler)
+	return handler
+}
+
+func rvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s request for %s", r.Method, r.URL.Path)
+		slog.Debug("Received request", "method", r.Method, "path", r.URL.Path)
 		switch r.Method {
 		case http.MethodGet:
-			getData(w, r)
+			getRvData(w, r)
 		case http.MethodPost:
-			createData(w, r, rvInfo, srv)
+			createRvData(w, r, rvInfo, srv)
 		case http.MethodPut:
-			updateData(w, r, rvInfo, srv)
+			updateRvData(w, r, rvInfo, srv)
 		default:
-			log.Printf("Method %s not allowed for %s", r.Method, r.URL.Path)
+			slog.Debug("Method not allowed", "method", r.Method, "path", r.URL.Path)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
@@ -43,10 +68,10 @@ func getVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	voucher, err := fetchVoucher(guid)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Printf("Voucher not found for GUID: %s", guidHex)
+			slog.Debug("Voucher not found", "GUID", guidHex)
 			http.Error(w, "Voucher not found", http.StatusNotFound)
 		} else {
-			log.Printf("Error querying database: %v", err)
+			slog.Debug("Error querying database", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -54,7 +79,7 @@ func getVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	ownerKeys, err := fetchOwnerKeys()
 	if err != nil {
-		log.Printf("Error querying owner_keys: %v", err)
+		slog.Debug("Error querying owner_keys", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -69,7 +94,7 @@ func getVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := json.Marshal(response)
 	if err != nil {
-		log.Printf("Error marshalling JSON: %v", err)
+		slog.Debug("Error marshalling JSON", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -89,33 +114,33 @@ func insertVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	guidHex := hex.EncodeToString(request.Voucher.GUID)
-	log.Printf("Inserting voucher with GUID: %s", guidHex)
+	slog.Debug("Inserting voucher", "GUID", guidHex)
 
 	if err := insertVoucher(request.Voucher); err != nil {
-		log.Printf("Error inserting into database: %v", err)
+		slog.Debug("Error inserting into database", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	if err := updateOwnerKeys(request.OwnerKeys); err != nil {
-		log.Printf("Error updating owner key in database: %v", err)
+		slog.Debug("Error updating owner key in database", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Voucher inserted and owner keys updated successfully"))
+	w.Write([]byte(guidHex))
 }
 
-func getData(w http.ResponseWriter, _ *http.Request) {
-	log.Println("Fetching data")
+func getRvData(w http.ResponseWriter, _ *http.Request) {
+	slog.Debug("Fetching data")
 	data, err := fetchDataFromDB()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Println("No data found")
+			slog.Debug("No data found")
 			http.Error(w, "No data found", http.StatusNotFound)
 		} else {
-			log.Printf("Error fetching data: %v", err)
+			slog.Debug("Error fetching data", "error", err)
 			http.Error(w, "Error fetching data", http.StatusInternalServerError)
 		}
 		return
@@ -125,39 +150,37 @@ func getData(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(data)
 }
 
-func createData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
+func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	log.Println("Creating new data")
-
 	data, err := parseRequestBody(r)
 	if err != nil {
-		log.Printf("Error parsing request body: %v", err)
+		slog.Debug("Error parsing request body", "error", err)
 		http.Error(w, "Invalid input", http.StatusBadRequest)
 		return
 	}
 
 	if exists, err := checkDataExists(); err != nil {
-		log.Printf("Error checking data existence: %v", err)
+		slog.Debug("Error checking data existence", "error", err)
 		http.Error(w, "Error processing data", http.StatusInternalServerError)
 		return
 	} else if exists {
-		log.Println("Data already exists, cannot create new entry")
+		slog.Debug("Data already exists, cannot create new entry")
 		http.Error(w, "Data already exists", http.StatusConflict)
 		return
 	}
 
 	if err := insertData(data); err != nil {
-		log.Printf("Error inserting data: %v", err)
+		slog.Debug("Error inserting data", "error", err)
 		http.Error(w, "Error inserting data", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("Data created")
+	slog.Debug("Data created")
 
 	if err := updateRvInfoFromDB(rvInfo); err != nil {
-		log.Printf("Error updating RVInfo: %v", err)
+		slog.Debug("Error updating RVInfo", "error", err)
 		http.Error(w, "Error updating RVInfo", http.StatusInternalServerError)
 		return
 	}
@@ -168,39 +191,37 @@ func createData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstru
 	json.NewEncoder(w).Encode(data)
 }
 
-func updateData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
+func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	log.Println("Updating data")
-
 	data, err := parseRequestBody(r)
 	if err != nil {
-		log.Printf("Error parsing request body: %v", err)
+		slog.Debug("Error parsing request body", "error", err)
 		http.Error(w, "Invalid input", http.StatusBadRequest)
 		return
 	}
 
 	if exists, err := checkDataExists(); err != nil {
-		log.Printf("Error checking data existence: %v", err)
+		slog.Debug("Error checking data existence", "error", err)
 		http.Error(w, "Error processing data", http.StatusInternalServerError)
 		return
 	} else if !exists {
-		log.Println("No data found to update")
+		slog.Debug("No data found to update")
 		http.Error(w, "No data found", http.StatusNotFound)
 		return
 	}
 
 	if err := updateDataInDB(data); err != nil {
-		log.Printf("Error updating data: %v", err)
+		slog.Debug("Error updating data", "error", err)
 		http.Error(w, "Error updating data", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("Data updated")
+	slog.Debug("Data updated")
 
 	if err := updateRvInfoFromDB(rvInfo); err != nil {
-		log.Printf("Error updating RVInfo: %v", err)
+		slog.Debug("Error updating RVInfo", "error", err)
 		http.Error(w, "Error updating RVInfo", http.StatusInternalServerError)
 		return
 	}

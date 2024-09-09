@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2024 Intel Corporation
+// SPDX-License-Identifier: Apache 2.0
+
 package rvinfo
 
 import (
@@ -7,8 +10,8 @@ import (
 	"strconv"
 
 	"github.com/fido-device-onboard/go-fdo"
-	"github.com/fido-device-onboard/go-fdo-server/cmd/db"
-	"github.com/fido-device-onboard/go-fdo-server/cmd/utils"
+	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/utils"
 )
 
 func CreateRvInfo(useTLS bool, extAddr, addr string, rvBypass bool) ([][]fdo.RvInstruction, string, uint16, error) {
@@ -49,14 +52,14 @@ func CreateRvInfo(useTLS bool, extAddr, addr string, rvBypass bool) ([][]fdo.RvI
 }
 
 func UpdateRvInfoFromDB(rvInfo *[][]fdo.RvInstruction) error {
-	data, err := db.FetchDataFromDB()
+	rvData, err := db.FetchDataFromDB()
 	if err != nil {
-		return fmt.Errorf("error fetching data after POST: %w", err)
+		return fmt.Errorf("error fetching rvData after POST: %w", err)
 	}
 
-	parsedData, ok := data.Value.([]interface{})
+	parsedData, ok := rvData.Value.([]interface{})
 	if !ok || len(parsedData) == 0 {
-		return fmt.Errorf("error parsing data after POST: %v", data.Value)
+		return fmt.Errorf("error parsing rvData after POST: %v", rvData.Value)
 	}
 
 	for rvDirectiveIndex, rvDirective := range parsedData {

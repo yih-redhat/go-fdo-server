@@ -35,8 +35,9 @@ import (
 	"time"
 
 	"github.com/fido-device-onboard/go-fdo"
-	"github.com/fido-device-onboard/go-fdo-server/cmd/db"
-	"github.com/fido-device-onboard/go-fdo-server/cmd/rvinfo"
+	"github.com/fido-device-onboard/go-fdo-server/api"
+	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 	"github.com/fido-device-onboard/go-fdo/fsim"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
@@ -181,7 +182,7 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 	svc.OwnerModules = ownerModules
 
 	// Handle messages
-	handler := NewHTTPHandler(svc, &rvInfo).RegisterRoutes()
+	handler := api.NewHTTPHandler(svc, &rvInfo).RegisterRoutes()
 	// Listen and serve
 	server := NewServer(addr, handler, useTLS, state)
 

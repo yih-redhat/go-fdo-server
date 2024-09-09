@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2024 Intel Corporation
+// SPDX-License-Identifier: Apache 2.0
+
 package handlers
 
 import (
@@ -8,7 +11,7 @@ import (
 
 	"log/slog"
 
-	"github.com/fido-device-onboard/go-fdo-server/cmd/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 )
 
 func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2024 Intel Corporation
+// SPDX-License-Identifier: Apache 2.0
+
 package handlers
 
 import (
@@ -11,8 +14,8 @@ import (
 	"log/slog"
 
 	"github.com/fido-device-onboard/go-fdo"
-	"github.com/fido-device-onboard/go-fdo-server/cmd/db"
-	"github.com/fido-device-onboard/go-fdo-server/cmd/rvinfo"
+	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 )
 
 var mu sync.Mutex
@@ -35,28 +38,28 @@ func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerF
 }
 
 func getRvData(w http.ResponseWriter, _ *http.Request) {
-	slog.Debug("Fetching Data")
-	Data, err := db.FetchDataFromDB()
+	slog.Debug("Fetching rvData")
+	rvData, err := db.FetchDataFromDB()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			slog.Debug("No Data found")
-			http.Error(w, "No Data found", http.StatusNotFound)
+			slog.Debug("No rvData found")
+			http.Error(w, "No rvData found", http.StatusNotFound)
 		} else {
-			slog.Debug("Error fetching Data", "error", err)
-			http.Error(w, "Error fetching Data", http.StatusInternalServerError)
+			slog.Debug("Error fetching rvData", "error", err)
+			http.Error(w, "Error fetching rvData", http.StatusInternalServerError)
 		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Data)
+	json.NewEncoder(w).Encode(rvData)
 }
 
 func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	Data, err := parseRequestBody(r)
+	rvData, err := parseRequestBody(r)
 	if err != nil {
 		slog.Debug("Error parsing request body", "error", err)
 		http.Error(w, "Invalid input", http.StatusBadRequest)
@@ -64,22 +67,22 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 	}
 
 	if exists, err := db.CheckDataExists(); err != nil {
-		slog.Debug("Error checking Data existence", "error", err)
-		http.Error(w, "Error processing Data", http.StatusInternalServerError)
+		slog.Debug("Error checking rvData existence", "error", err)
+		http.Error(w, "Error processing rvData", http.StatusInternalServerError)
 		return
 	} else if exists {
-		slog.Debug("Data already exists, cannot create new entry")
-		http.Error(w, "Data already exists", http.StatusConflict)
+		slog.Debug("rvData already exists, cannot create new entry")
+		http.Error(w, "rvData already exists", http.StatusConflict)
 		return
 	}
 
-	if err := db.InsertData(Data); err != nil {
-		slog.Debug("Error inserting Data", "error", err)
-		http.Error(w, "Error inserting Data", http.StatusInternalServerError)
+	if err := db.InsertData(rvData); err != nil {
+		slog.Debug("Error inserting rvData", "error", err)
+		http.Error(w, "Error inserting rvData", http.StatusInternalServerError)
 		return
 	}
 
-	slog.Debug("Data created")
+	slog.Debug("rvData created")
 
 	if err := rvinfo.UpdateRvInfoFromDB(rvInfo); err != nil {
 		slog.Debug("Error updating RVInfo", "error", err)
@@ -90,14 +93,14 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 	srv.RvInfo = *rvInfo
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Data)
+	json.NewEncoder(w).Encode(rvData)
 }
 
 func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	Data, err := parseRequestBody(r)
+	rvData, err := parseRequestBody(r)
 	if err != nil {
 		slog.Debug("Error parsing request body", "error", err)
 		http.Error(w, "Invalid input", http.StatusBadRequest)
@@ -105,22 +108,22 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 	}
 
 	if exists, err := db.CheckDataExists(); err != nil {
-		slog.Debug("Error checking Data existence", "error", err)
-		http.Error(w, "Error processing Data", http.StatusInternalServerError)
+		slog.Debug("Error checking rvData existence", "error", err)
+		http.Error(w, "Error processing rvData", http.StatusInternalServerError)
 		return
 	} else if !exists {
-		slog.Debug("No Data found to update")
-		http.Error(w, "No Data found", http.StatusNotFound)
+		slog.Debug("No rvData found to update")
+		http.Error(w, "No rvData found", http.StatusNotFound)
 		return
 	}
 
-	if err := db.UpdateDataInDB(Data); err != nil {
-		slog.Debug("Error updating Data", "error", err)
-		http.Error(w, "Error updating Data", http.StatusInternalServerError)
+	if err := db.UpdateDataInDB(rvData); err != nil {
+		slog.Debug("Error updating rvData", "error", err)
+		http.Error(w, "Error updating rvData", http.StatusInternalServerError)
 		return
 	}
 
-	slog.Debug("Data updated")
+	slog.Debug("rvData updated")
 
 	if err := rvinfo.UpdateRvInfoFromDB(rvInfo); err != nil {
 		slog.Debug("Error updating RVInfo", "error", err)
@@ -130,26 +133,26 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 
 	srv.RvInfo = *rvInfo
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Data)
+	json.NewEncoder(w).Encode(rvData)
 }
 
 func parseRequestBody(r *http.Request) (db.Data, error) {
-	var Data db.Data
+	var rvData db.Data
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "text/plain" {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			return Data, fmt.Errorf("error reading body: %w", err)
+			return rvData, fmt.Errorf("error reading body: %w", err)
 		}
 		var rawData interface{}
 		if err := json.Unmarshal(body, &rawData); err != nil {
-			return Data, fmt.Errorf("error unmarshalling body: %w", err)
+			return rvData, fmt.Errorf("error unmarshalling body: %w", err)
 		}
-		Data.Value = rawData
+		rvData.Value = rawData
 	} else {
-		if err := json.NewDecoder(r.Body).Decode(&Data); err != nil {
-			return Data, fmt.Errorf("error decoding JSON: %w", err)
+		if err := json.NewDecoder(r.Body).Decode(&rvData); err != nil {
+			return rvData, fmt.Errorf("error decoding JSON: %w", err)
 		}
 	}
-	return Data, nil
+	return rvData, nil
 }

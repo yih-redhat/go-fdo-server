@@ -22,7 +22,7 @@ var mu sync.Mutex
 
 func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("Received request", "method", r.Method, "path", r.URL.Path)
+		slog.Debug("Received RV request", "method", r.Method, "path", r.URL.Path)
 		switch r.Method {
 		case http.MethodGet:
 			getRvData(w, r)
@@ -39,7 +39,7 @@ func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerF
 
 func getRvData(w http.ResponseWriter, _ *http.Request) {
 	slog.Debug("Fetching rvData")
-	rvData, err := db.FetchDataFromDB()
+	rvData, err := db.FetchRvData()
 	if err != nil {
 		if err == sql.ErrNoRows {
 			slog.Debug("No rvData found")
@@ -66,7 +66,7 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if exists, err := db.CheckDataExists(); err != nil {
+	if exists, err := db.CheckRvDataExists(); err != nil {
 		slog.Debug("Error checking rvData existence", "error", err)
 		http.Error(w, "Error processing rvData", http.StatusInternalServerError)
 		return
@@ -76,7 +76,7 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if err := db.InsertData(rvData); err != nil {
+	if err := db.InsertRvData(rvData); err != nil {
 		slog.Debug("Error inserting rvData", "error", err)
 		http.Error(w, "Error inserting rvData", http.StatusInternalServerError)
 		return
@@ -84,7 +84,7 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 
 	slog.Debug("rvData created")
 
-	if err := rvinfo.UpdateRvInfoFromDB(rvInfo); err != nil {
+	if err := rvinfo.RetrieveRvInfo(rvInfo); err != nil {
 		slog.Debug("Error updating RVInfo", "error", err)
 		http.Error(w, "Error updating RVInfo", http.StatusInternalServerError)
 		return
@@ -107,7 +107,7 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if exists, err := db.CheckDataExists(); err != nil {
+	if exists, err := db.CheckRvDataExists(); err != nil {
 		slog.Debug("Error checking rvData existence", "error", err)
 		http.Error(w, "Error processing rvData", http.StatusInternalServerError)
 		return
@@ -117,7 +117,7 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if err := db.UpdateDataInDB(rvData); err != nil {
+	if err := db.UpdateRvDataInDB(rvData); err != nil {
 		slog.Debug("Error updating rvData", "error", err)
 		http.Error(w, "Error updating rvData", http.StatusInternalServerError)
 		return
@@ -125,7 +125,7 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 
 	slog.Debug("rvData updated")
 
-	if err := rvinfo.UpdateRvInfoFromDB(rvInfo); err != nil {
+	if err := rvinfo.RetrieveRvInfo(rvInfo); err != nil {
 		slog.Debug("Error updating RVInfo", "error", err)
 		http.Error(w, "Error updating RVInfo", http.StatusInternalServerError)
 		return

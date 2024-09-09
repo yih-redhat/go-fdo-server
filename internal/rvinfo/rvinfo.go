@@ -7,27 +7,18 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"strconv"
 
 	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/utils"
 )
 
-func CreateRvInfo(useTLS bool, extAddr, addr string, rvBypass bool) ([][]fdo.RvInstruction, string, uint16, error) {
+func CreateRvInfo(useTLS bool, host string, port uint16, rvBypass bool) ([][]fdo.RvInstruction, error) {
 	prot := fdo.RVProtHTTP
 	if useTLS {
 		prot = fdo.RVProtHTTPS
 	}
 	rvInfo := [][]fdo.RvInstruction{{{Variable: fdo.RVProtocol, Value: utils.MustMarshal(prot)}}}
-	if extAddr == "" {
-		extAddr = addr
-	}
-
-	host, portStr, err := net.SplitHostPort(extAddr)
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("invalid external addr: %w", err)
-	}
 
 	if host == "" {
 		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: utils.MustMarshal(net.IP{127, 0, 0, 1})})
@@ -37,22 +28,17 @@ func CreateRvInfo(useTLS bool, extAddr, addr string, rvBypass bool) ([][]fdo.RvI
 		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDns, Value: utils.MustMarshal(host)})
 	}
 
-	portNum, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("invalid external port: %w", err)
-	}
-	port := uint16(portNum)
 	rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDevPort, Value: utils.MustMarshal(port)})
 
 	if rvBypass {
 		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVBypass})
 	}
 
-	return rvInfo, host, port, nil
+	return rvInfo, nil
 }
 
-func UpdateRvInfoFromDB(rvInfo *[][]fdo.RvInstruction) error {
-	rvData, err := db.FetchDataFromDB()
+func RetrieveRvInfo(rvInfo *[][]fdo.RvInstruction) error {
+	rvData, err := db.FetchRvData()
 	if err != nil {
 		return fmt.Errorf("error fetching rvData after POST: %w", err)
 	}
@@ -156,4 +142,21 @@ func UpdateRvInfo(rvInfo *[][]fdo.RvInstruction, index int, rvMap map[fdo.RvVar]
 	*rvInfo = newRvInfo
 
 	return nil
+}
+
+func FetchRvInfo() ([][]fdo.RvInstruction, error) {
+	var rvInfo [][]fdo.RvInstruction
+
+	if exists, err := db.CheckRvDataExists(); err != nil {
+		slog.Debug("Error checking rvData existence", "error", err)
+		return nil, err
+	} else if exists {
+		if err := RetrieveRvInfo(&rvInfo); err != nil {
+			slog.Debug("Error updating RVInfo", "error", err)
+			return nil, err
+		}
+	} else if !exists {
+		return nil, err
+	}
+	return rvInfo, nil
 }

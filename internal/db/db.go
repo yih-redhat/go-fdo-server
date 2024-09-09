@@ -16,14 +16,14 @@ var db *sql.DB
 
 func InitDb(state *sqlite.DB) error {
 	db = state.DB()
-	if err := createTable(); err != nil {
+	if err := createRvTable(); err != nil {
 		slog.Error("Failed to create table")
 		return err
 	}
 	return nil
 }
 
-func createTable() error {
+func createRvTable() error {
 	query := `CREATE TABLE IF NOT EXISTS rvinfo (
 		id INTEGER PRIMARY KEY CHECK (id = 1),
 		value TEXT
@@ -74,7 +74,7 @@ func UpdateOwnerKeys(ownerKeys []OwnerKey) error {
 	return nil
 }
 
-func CheckDataExists() (bool, error) {
+func CheckRvDataExists() (bool, error) {
 	var count int
 	err := db.QueryRow("SELECT COUNT(*) FROM rvinfo WHERE id = 1").Scan(&count)
 	if err != nil {
@@ -83,7 +83,7 @@ func CheckDataExists() (bool, error) {
 	return count > 0, nil
 }
 
-func InsertData(data Data) error {
+func InsertRvData(data Data) error {
 	value, err := json.Marshal(data.Value)
 	if err != nil {
 		return fmt.Errorf("error marshalling value: %w", err)
@@ -95,7 +95,7 @@ func InsertData(data Data) error {
 	return nil
 }
 
-func UpdateDataInDB(data Data) error {
+func UpdateRvDataInDB(data Data) error {
 	value, err := json.Marshal(data.Value)
 	if err != nil {
 		return fmt.Errorf("error marshalling value: %w", err)
@@ -107,7 +107,7 @@ func UpdateDataInDB(data Data) error {
 	return nil
 }
 
-func FetchDataFromDB() (Data, error) {
+func FetchRvData() (Data, error) {
 	var data Data
 	var value string
 	err := db.QueryRow("SELECT value FROM rvinfo WHERE id = 1").Scan(&value)

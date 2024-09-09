@@ -23,6 +23,7 @@ import (
 	"log"
 	"log/slog"
 	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -154,10 +155,38 @@ func server() error {
 
 	useTLS = insecureTLS
 
-	// RV Info
-	rvInfo, host, port, err := rvinfo.CreateRvInfo(useTLS, extAddr, addr, rvBypass)
+	if extAddr == "" {
+		extAddr = addr
+	}
+
+	host, portStr, err := net.SplitHostPort(extAddr)
+	if err != nil {
+		return fmt.Errorf("invalid external addr: %w", err)
+	}
+
+	portNum, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return fmt.Errorf("invalid external port: %w", err)
+	}
+	port := uint16(portNum)
+
+	err = db.InitDb(state)
 	if err != nil {
 		return err
+	}
+
+	// Retrieve RV info from DB
+	rvInfo, err := rvinfo.FetchRvInfo()
+	if err != nil {
+		return err
+	}
+
+	// CreateRvInfo initializes new RV info if not found in DB
+	if rvInfo == nil {
+		rvInfo, err = rvinfo.CreateRvInfo(useTLS, host, port, rvBypass)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Invoke TO0 client if a GUID is specified
@@ -168,12 +197,6 @@ func server() error {
 }
 
 func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
-
-	err := db.InitDb(state)
-	if err != nil {
-		return err
-	}
-
 	// Create FDO responder
 	svc, err := newService(rvInfo, state)
 	if err != nil {

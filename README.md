@@ -8,16 +8,14 @@
 
 ## Building the Example Server Application
 
-The example server application can be built with `go build` directly, but requires a Go workspace to build from the root package directory.
+The example server application can be built with `go build` directly
 
 ```console
-$ go work init
-$ go work use -r .
-$ go build -o fdo ./cmd
-$ ./fdo
+$ go build -o fdo_server ./cmd/fdo_server/
+$ ./fdo_server
 
 Usage:
-  fdo [--] [options]
+  fdo_server [--] [options]
 
 Server options:
   -db string
@@ -46,16 +44,65 @@ Server options:
 
 ## Building and Running the Example Server Application using Containers
 
-### Building FDO container
+### Prerequisites
+
+- Docker
+- Make
+
+### Makefile Targets
+
+- `build`: Builds the Server image.
+- `run`: Runs the Server container.
+- `clean`: Removes the Server image.
+- `all`: Builds the Server image and then runs the container.
+
+### Variables
+
+The following variables can be set to customize the behavior of the `make run` command:
+
+- `IMAGE_NAME`: The name of the Docker image (default: `fdo_server`).
+- `DB_PATH`: The path to the SQLite database file (default: `./test.db`).
+- `DB_PASS`: The SQLite database encryption-at-rest passphrase.
+- `NETWORK`: The Docker network setting (default: `host`).
+- `DEBUG`: Debug flag to print HTTP contents (default: `--debug`).
+- `HTTP_ADDR`: The address to listen on (default: `localhost:8080`).
+- `EXT_HTTP_ADDR`: The external address devices should connect to (default: `127.0.0.1:8080`).
+- `RV_BYPASS`: Flag to skip TO1.
+- `TO0_ADDR`: Rendezvous server address to register RV blobs (disables self-registration).
+- `TO0_GUID`: Device GUID to immediately register an RV blob (requires `TO0_ADDR` flag).
+- `UPLOAD_DIR`: The directory path to put file uploads (default: `uploads`).
+- `DOWNLOAD_FILES`: Files to use with `fdo.download` FSIM (can be multiple files).
+- `UPLOAD_FILES`: Files to use with `fdo.upload` FSIM (can be multiple files).
+
+## Usage
+
+### Building the Docker Image
+
+To build the Docker image, run:
 
 ```console
-docker build -t fdo .
+make build
 ```
 
-### Starting FDO Go Service as container
+### Running the Docker Container
+To start the FDO Go service as a Docker container, run:
 
 ```console
-docker run --network=host fdo -db ./test.db --debug
+make run
 ```
+This will start the container with the specified network settings and database path.
+
+### Stoping the Docker Container
+To stop the Docker Container, run:
+```console
+make stop
+```
+
+### Default Target
+To build and run the Docker container in one step, run:
+```console
+make all
+```
+
 ***NOTE:***
-Supports all server parameters specified in the building section. Use network mode based on the host machine and requirements. 
+Supports all server parameters specified in the building section. Use network mode based on the host machine and requirements.

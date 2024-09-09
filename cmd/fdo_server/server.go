@@ -27,16 +27,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fido-device-onboard/go-fdo"
-	"github.com/fido-device-onboard/go-fdo/cbor"
+	"github.com/fido-device-onboard/go-fdo-server/api"
+	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 	"github.com/fido-device-onboard/go-fdo/fsim"
-	transport "github.com/fido-device-onboard/go-fdo/http"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
 )
@@ -83,6 +86,58 @@ func init() {
 	serverFlags.Var(&uploadReqs, "upload", "Use fdo.upload FSIM for each `file` (flag may be used multiple times)")
 }
 
+// Server represents the HTTP server
+type Server struct {
+	addr    string
+	handler http.Handler
+	useTLS  bool
+	state   *sqlite.DB
+}
+
+// NewServer creates a new Server
+func NewServer(addr string, handler http.Handler, useTLS bool, state *sqlite.DB) *Server {
+	return &Server{addr: addr, handler: handler, useTLS: useTLS, state: state}
+}
+
+// Start starts the HTTP server
+func (s *Server) Start() error {
+	srv := &http.Server{
+		Addr:              s.addr,
+		Handler:           s.handler,
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+
+	// Channel to listen for interrupt or terminate signals
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	// Goroutine to listen for signals and gracefully shut down the server
+	go func() {
+		<-stop
+		slog.Debug("Shutting down server...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Debug("Server forced to shutdown:", "err", err)
+		}
+	}()
+
+	if s.useTLS {
+		cert, err := tlsCert(s.state.DB())
+		if err != nil {
+			return err
+		}
+		srv.TLSConfig = &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{*cert},
+		}
+		return srv.ListenAndServeTLS("", "")
+	}
+	return srv.ListenAndServe()
+}
+
 func server() error {
 	if debug {
 		level.Set(slog.LevelDebug)
@@ -100,41 +155,44 @@ func server() error {
 
 	useTLS = insecureTLS
 
-	// RV Info
-	prot := fdo.RVProtHTTP
-	if useTLS {
-		prot = fdo.RVProtHTTPS
-	}
-	rvInfo := [][]fdo.RvInstruction{{{Variable: fdo.RVProtocol, Value: mustMarshal(prot)}}}
 	if extAddr == "" {
 		extAddr = addr
 	}
+
 	host, portStr, err := net.SplitHostPort(extAddr)
 	if err != nil {
 		return fmt.Errorf("invalid external addr: %w", err)
 	}
-	if host == "" {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: mustMarshal(net.IP{127, 0, 0, 1})})
-	} else if hostIP := net.ParseIP(host); hostIP.To4() != nil || hostIP.To16() != nil {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: mustMarshal(hostIP)})
-	} else {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDns, Value: mustMarshal(host)})
-	}
+
 	portNum, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return fmt.Errorf("invalid external port: %w", err)
 	}
 	port := uint16(portNum)
-	rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDevPort, Value: mustMarshal(port)})
-	if rvBypass {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVBypass})
+
+	err = db.InitDb(state)
+	if err != nil {
+		return err
+	}
+
+	// Retrieve RV info from DB
+	rvInfo, err := rvinfo.FetchRvInfo()
+	if err != nil {
+		return err
+	}
+
+	// CreateRvInfo initializes new RV info if not found in DB
+	if rvInfo == nil {
+		rvInfo, err = rvinfo.CreateRvInfo(useTLS, host, port, rvBypass)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Invoke TO0 client if a GUID is specified
 	if to0Guid != "" {
 		return registerRvBlob(host, port, state)
 	}
-
 	return serveHTTP(rvInfo, state)
 }
 
@@ -147,27 +205,13 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 	svc.OwnerModules = ownerModules
 
 	// Handle messages
-	handler := http.NewServeMux()
-	handler.Handle("POST /fdo/101/msg/{msg}", &transport.Handler{Responder: svc})
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 3 * time.Second,
-	}
-
+	handler := api.NewHTTPHandler(svc, &rvInfo).RegisterRoutes()
 	// Listen and serve
-	if useTLS {
-		cert, err := tlsCert(state.DB())
-		if err != nil {
-			return err
-		}
-		srv.TLSConfig = &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{*cert},
-		}
-		return srv.ListenAndServeTLS("", "")
-	}
-	return srv.ListenAndServe()
+	server := NewServer(addr, handler, useTLS, state)
+
+	slog.Debug("Starting server on:", "addr", addr)
+	return server.Start()
+
 }
 
 func registerRvBlob(host string, port uint16, state *sqlite.DB) error {
@@ -206,17 +250,9 @@ func registerRvBlob(host string, port uint16, state *sqlite.DB) error {
 	if err != nil {
 		return fmt.Errorf("error performing to0: %w", err)
 	}
-	log.Printf("to0 refresh in %s\n", time.Duration(refresh)*time.Second)
+	slog.Debug("to0 refresh", "duration", time.Duration(refresh)*time.Second)
 
 	return nil
-}
-
-func mustMarshal(v any) []byte {
-	data, err := cbor.Marshal(v)
-	if err != nil {
-		panic(err.Error())
-	}
-	return data
 }
 
 //nolint:gocyclo

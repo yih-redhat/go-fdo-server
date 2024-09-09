@@ -8,12 +8,10 @@
 
 ## Building the Example Server Application
 
-The example server application can be built with `go build` directly, but requires a Go workspace to build from the root package directory.
+The example server application can be built with `go build` directly
 
 ```console
-$ go work init
-$ go work use -r .
-$ go build -o fdo_server ./cmd
+$ go build -o fdo_server ./cmd/fdo_server/
 $ ./fdo_server
 
 Usage:

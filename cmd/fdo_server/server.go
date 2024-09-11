@@ -15,7 +15,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,6 +37,7 @@ import (
 	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/api"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/ownerinfo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 	"github.com/fido-device-onboard/go-fdo/fsim"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
@@ -47,17 +47,18 @@ import (
 var serverFlags = flag.NewFlagSet("server", flag.ContinueOnError)
 
 var (
-	useTLS     bool
-	addr       string
-	dbPath     string
-	dbPass     string
-	extAddr    string
-	to0Addr    string
-	to0Guid    string
-	rvBypass   bool
-	downloads  stringList
-	uploadDir  string
-	uploadReqs stringList
+	useTLS      bool
+	addr        string
+	dbPath      string
+	dbPass      string
+	extAddr     string
+	to0Addr     string
+	to0Guid     string
+	rvBypass    bool
+	downloads   stringList
+	uploadDir   string
+	uploadReqs  stringList
+	insecureTLS bool
 )
 
 type stringList []string
@@ -189,14 +190,24 @@ func server() error {
 		}
 	}
 
-	// Invoke TO0 client if a GUID is specified
-	if to0Guid != "" {
-		return registerRvBlob(host, port, state)
+	// Retrieve owner info from DB
+	ownerInfo, err := ownerinfo.FetchOwnerInfo()
+	if err != nil {
+		return err
 	}
-	return serveHTTP(rvInfo, state)
+
+	// CreateRvInfo initializes new RV info if not found in DB
+	if ownerInfo == nil {
+		ownerInfo, err = ownerinfo.CreateRvTO2Addr(host, port, useTLS)
+		if err != nil {
+			return err
+		}
+	}
+
+	return serveHTTP(rvInfo, ownerInfo, state)
 }
 
-func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
+func serveHTTP(rvInfo [][]fdo.RvInstruction, ownerInfo []fdo.RvTO2Addr, state *sqlite.DB) error {
 	// Create FDO responder
 	svc, err := newService(rvInfo, state)
 	if err != nil {
@@ -205,54 +216,13 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 	svc.OwnerModules = ownerModules
 
 	// Handle messages
-	handler := api.NewHTTPHandler(svc, &rvInfo).RegisterRoutes()
+	handler := api.NewHTTPHandler(svc, &rvInfo, ownerInfo, state).RegisterRoutes()
 	// Listen and serve
 	server := NewServer(addr, handler, useTLS, state)
 
 	slog.Debug("Starting server on:", "addr", addr)
 	return server.Start()
 
-}
-
-func registerRvBlob(host string, port uint16, state *sqlite.DB) error {
-	if to0Addr == "" {
-		return fmt.Errorf("to0-guid depends on to0 flag being set")
-	}
-
-	// Parse to0-guid flag
-	guidBytes, err := hex.DecodeString(to0Guid)
-	if err != nil {
-		return fmt.Errorf("error parsing hex GUID of device to register RV blob: %w", err)
-	}
-	if len(guidBytes) != 16 {
-		return fmt.Errorf("error parsing hex GUID of device to register RV blob: must be 16 bytes")
-	}
-	var guid fdo.GUID
-	copy(guid[:], guidBytes)
-
-	proto := fdo.HTTPTransport
-	if useTLS {
-		proto = fdo.HTTPSTransport
-	}
-
-	refresh, err := (&fdo.TO0Client{
-		Transport: tlsTransport(nil),
-		Addrs: []fdo.RvTO2Addr{
-			{
-				DNSAddress:        &host,
-				Port:              port,
-				TransportProtocol: proto,
-			},
-		},
-		Vouchers:  state,
-		OwnerKeys: state,
-	}).RegisterBlob(context.Background(), to0Addr, guid)
-	if err != nil {
-		return fmt.Errorf("error performing to0: %w", err)
-	}
-	slog.Debug("to0 refresh", "duration", time.Duration(refresh)*time.Second)
-
-	return nil
 }
 
 //nolint:gocyclo

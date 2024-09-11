@@ -18,18 +18,17 @@ import (
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 )
 
-var mu sync.Mutex
-
 func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var mu sync.Mutex
 		slog.Debug("Received RV request", "method", r.Method, "path", r.URL.Path)
 		switch r.Method {
 		case http.MethodGet:
 			getRvData(w, r)
 		case http.MethodPost:
-			createRvData(w, r, rvInfo, srv)
+			createRvData(w, r, rvInfo, srv, &mu)
 		case http.MethodPut:
-			updateRvData(w, r, rvInfo, srv)
+			updateRvData(w, r, rvInfo, srv, &mu)
 		default:
 			slog.Debug("Method not allowed", "method", r.Method, "path", r.URL.Path)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -39,7 +38,7 @@ func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerF
 
 func getRvData(w http.ResponseWriter, _ *http.Request) {
 	slog.Debug("Fetching rvData")
-	rvData, err := db.FetchRvData()
+	rvData, err := db.FetchData("rvinfo")
 	if err != nil {
 		if err == sql.ErrNoRows {
 			slog.Debug("No rvData found")
@@ -55,7 +54,7 @@ func getRvData(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(rvData)
 }
 
-func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
+func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server, mu *sync.Mutex) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -66,7 +65,7 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if exists, err := db.CheckRvDataExists(); err != nil {
+	if exists, err := db.CheckDataExists("rvinfo"); err != nil {
 		slog.Debug("Error checking rvData existence", "error", err)
 		http.Error(w, "Error processing rvData", http.StatusInternalServerError)
 		return
@@ -76,7 +75,7 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if err := db.InsertRvData(rvData); err != nil {
+	if err := db.InsertData(rvData, "rvinfo"); err != nil {
 		slog.Debug("Error inserting rvData", "error", err)
 		http.Error(w, "Error inserting rvData", http.StatusInternalServerError)
 		return
@@ -96,7 +95,7 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 	json.NewEncoder(w).Encode(rvData)
 }
 
-func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server) {
+func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server, mu *sync.Mutex) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -107,7 +106,7 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if exists, err := db.CheckRvDataExists(); err != nil {
+	if exists, err := db.CheckDataExists("rvinfo"); err != nil {
 		slog.Debug("Error checking rvData existence", "error", err)
 		http.Error(w, "Error processing rvData", http.StatusInternalServerError)
 		return
@@ -117,7 +116,7 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	if err := db.UpdateRvDataInDB(rvData); err != nil {
+	if err := db.UpdateDataInDB(rvData, "rvinfo"); err != nil {
 		slog.Debug("Error updating rvData", "error", err)
 		http.Error(w, "Error updating rvData", http.StatusInternalServerError)
 		return

@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
+	"strconv"
 
 	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/utils"
+	"github.com/fido-device-onboard/go-fdo/cbor"
 )
 
 func CreateRvInfo(useTLS bool, host string, port uint16, rvBypass bool) ([][]fdo.RvInstruction, error) {
@@ -38,7 +41,7 @@ func CreateRvInfo(useTLS bool, host string, port uint16, rvBypass bool) ([][]fdo
 }
 
 func RetrieveRvInfo(rvInfo *[][]fdo.RvInstruction) error {
-	rvData, err := db.FetchRvData()
+	rvData, err := db.FetchData("rvinfo")
 	if err != nil {
 		return fmt.Errorf("error fetching rvData after POST: %w", err)
 	}
@@ -147,16 +150,81 @@ func UpdateRvInfo(rvInfo *[][]fdo.RvInstruction, index int, rvMap map[fdo.RvVar]
 func FetchRvInfo() ([][]fdo.RvInstruction, error) {
 	var rvInfo [][]fdo.RvInstruction
 
-	if exists, err := db.CheckRvDataExists(); err != nil {
+	if exists, err := db.CheckDataExists("rvinfo"); err != nil {
 		slog.Debug("Error checking rvData existence", "error", err)
 		return nil, err
 	} else if exists {
 		if err := RetrieveRvInfo(&rvInfo); err != nil {
-			slog.Debug("Error updating RVInfo", "error", err)
+			slog.Debug("Error retrieving RVInfo", "error", err)
 			return nil, err
 		}
 	} else if !exists {
 		return nil, err
 	}
 	return rvInfo, nil
+}
+
+func GetRVIPAddress(rvInfo [][]fdo.RvInstruction) (string, error) {
+	var ipAddress, dnsAddress string
+	var port uint16
+	var protocol fdo.RvProt
+
+	for _, instructions := range rvInfo {
+		for _, instruction := range instructions {
+			var err error
+			switch instruction.Variable {
+			case fdo.RVIPAddress:
+				var ip []byte
+				err = cbor.Unmarshal(instruction.Value, &ip)
+				if err == nil {
+					ipAddress = net.IP(ip).String()
+				}
+			case fdo.RVDns:
+				err = cbor.Unmarshal(instruction.Value, &dnsAddress)
+			case fdo.RVDevPort, fdo.RVOwnerPort:
+				err = cbor.Unmarshal(instruction.Value, &port)
+			case fdo.RVProtocol:
+				var prot uint8
+				err = cbor.Unmarshal(instruction.Value, &prot)
+				protocol = fdo.RvProt(prot)
+			}
+			if err != nil {
+				return "", fmt.Errorf("invalid format for %v: %v", instruction.Variable, err)
+			}
+		}
+	}
+
+	if ipAddress == "" && dnsAddress == "" {
+		return "", fmt.Errorf("no IP address or DNS address found")
+	}
+
+	host := ipAddress
+	if host == "" {
+		host = dnsAddress
+	}
+
+	scheme := map[fdo.RvProt]string{
+		fdo.RVProtHTTP:  "http",
+		fdo.RVProtHTTPS: "https",
+	}[protocol]
+
+	if scheme == "" {
+		return "", fmt.Errorf("unsupported protocol")
+	}
+
+	u := url.URL{
+		Scheme: scheme,
+		Host:   net.JoinHostPort(host, strconv.Itoa(int(port))),
+	}
+
+	return u.String(), nil
+}
+
+func GetRvInfoFromVoucher(voucherData []byte) ([][]fdo.RvInstruction, error) {
+	var voucher fdo.Voucher
+	if err := cbor.Unmarshal(voucherData, &voucher); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal voucher: %v", err)
+	}
+
+	return voucher.Header.Val.RvInfo, nil
 }

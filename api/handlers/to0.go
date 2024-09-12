@@ -5,22 +5,23 @@ package handlers
 
 import (
 	"net/http"
+	"path"
 
 	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/to0"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
 )
 
-func To0Handler(srv *fdo.Server, ownerInfo []fdo.RvTO2Addr, state *sqlite.DB) http.HandlerFunc {
+func To0Handler(srv *fdo.Server, state *sqlite.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		to0Guid := r.URL.Path[len("/api/v1/to0/"):]
+		to0Guid := path.Base(r.URL.Path)
 		if to0Guid == "" {
 			http.Error(w, "GUID is required", http.StatusBadRequest)
 			return
 		}
 
 		if to0Guid != "" {
-			err := to0.RegisterRvBlob(srv.RvInfo, to0Guid, ownerInfo, state)
+			err := to0.RegisterRvBlob(srv.RvInfo, to0Guid, state)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}

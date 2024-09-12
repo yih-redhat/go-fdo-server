@@ -190,24 +190,16 @@ func server() error {
 		}
 	}
 
-	// Retrieve owner info from DB
-	ownerInfo, err := ownerinfo.FetchOwnerInfo()
+	// CreateRvTO2Addr initializes new owner info and stores it with default values if not found in DB
+	err = ownerinfo.CreateRvTO2Addr(host, port, useTLS)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create and store rvTO2Addrs: %v", err)
 	}
 
-	// CreateRvInfo initializes new RV info if not found in DB
-	if ownerInfo == nil {
-		ownerInfo, err = ownerinfo.CreateRvTO2Addr(host, port, useTLS)
-		if err != nil {
-			return err
-		}
-	}
-
-	return serveHTTP(rvInfo, ownerInfo, state)
+	return serveHTTP(rvInfo, state)
 }
 
-func serveHTTP(rvInfo [][]fdo.RvInstruction, ownerInfo []fdo.RvTO2Addr, state *sqlite.DB) error {
+func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 	// Create FDO responder
 	svc, err := newService(rvInfo, state)
 	if err != nil {
@@ -216,7 +208,7 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, ownerInfo []fdo.RvTO2Addr, state *s
 	svc.OwnerModules = ownerModules
 
 	// Handle messages
-	handler := api.NewHTTPHandler(svc, &rvInfo, ownerInfo, state).RegisterRoutes()
+	handler := api.NewHTTPHandler(svc, &rvInfo, state).RegisterRoutes()
 	// Listen and serve
 	server := NewServer(addr, handler, useTLS, state)
 

@@ -22,7 +22,7 @@ func RetrieveOwnerInfo() ([]fdo.RvTO2Addr, error) {
 
 	rvTO2Addrs, err := ParseRvTO2Addr(parsedData)
 	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+		return nil, fmt.Errorf("error parsing JSON: %w", err)
 	}
 	return rvTO2Addrs, nil
 }
@@ -52,15 +52,23 @@ func ParseRvTO2Addr(ownerData []interface{}) ([]fdo.RvTO2Addr, error) {
 			return nil, fmt.Errorf("invalid data format")
 		}
 
-		ipStr, ok := itemSlice[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid IP address format")
+		var ip *net.IP
+		if itemSlice[0] != nil {
+			ipStr, ok := itemSlice[0].(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid IP address format")
+			}
+			parsedIP := net.ParseIP(ipStr)
+			ip = &parsedIP
 		}
-		ip := net.ParseIP(ipStr)
 
-		dnsStr, ok := itemSlice[1].(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid DNS address format")
+		var dnsStr *string
+		if itemSlice[1] != nil {
+			dns, ok := itemSlice[1].(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid DNS address format")
+			}
+			dnsStr = &dns
 		}
 
 		port, ok := itemSlice[2].(float64)
@@ -74,8 +82,8 @@ func ParseRvTO2Addr(ownerData []interface{}) ([]fdo.RvTO2Addr, error) {
 		}
 
 		rvTO2Addr := fdo.RvTO2Addr{
-			IPAddress:         &ip,
-			DNSAddress:        &dnsStr,
+			IPAddress:         ip,
+			DNSAddress:        dnsStr,
 			Port:              uint16(port),
 			TransportProtocol: fdo.TransportProtocol(protocol),
 		}
@@ -85,9 +93,9 @@ func ParseRvTO2Addr(ownerData []interface{}) ([]fdo.RvTO2Addr, error) {
 	return rvTO2Addrs, nil
 }
 
-func CreateRvTO2Addr(host string, port uint16, useTLS bool) ([]fdo.RvTO2Addr, error) {
-	var rvTO2Addrs []fdo.RvTO2Addr
-	var rvTO2Addr fdo.RvTO2Addr
+func CreateRvTO2Addr(host string, port uint16, useTLS bool) error {
+	var rvTO2Addrs [][]interface{}
+
 	ip := net.ParseIP(host)
 
 	var protocol fdo.TransportProtocol
@@ -98,21 +106,42 @@ func CreateRvTO2Addr(host string, port uint16, useTLS bool) ([]fdo.RvTO2Addr, er
 	}
 
 	if ip != nil {
-		rvTO2Addr = fdo.RvTO2Addr{
-			IPAddress:         &ip,
-			DNSAddress:        nil,
-			Port:              port,
-			TransportProtocol: protocol,
-		}
+		rvTO2Addrs = append(rvTO2Addrs, []interface{}{
+			ip.String(),
+			nil,
+			port,
+			protocol,
+		})
 	} else {
-		rvTO2Addr = fdo.RvTO2Addr{
-			IPAddress:         nil,
-			DNSAddress:        &host,
-			Port:              port,
-			TransportProtocol: protocol,
+		rvTO2Addrs = append(rvTO2Addrs, []interface{}{
+			nil,
+			host,
+			port,
+			protocol,
+		})
+	}
+
+	err := StoreRvTO2Addrs(rvTO2Addrs)
+	if err != nil {
+		return fmt.Errorf("failed to store rvTO2Addrs: %v", err)
+	}
+
+	return nil
+}
+
+func StoreRvTO2Addrs(rvTO2Addrs [][]interface{}) error {
+	var ownerData db.Data
+	ownerData.Value = rvTO2Addrs
+
+	if exists, err := db.CheckDataExists("owner_info"); err != nil {
+		slog.Debug("Error checking ownerInfo existence", "error", err)
+		return err
+	} else if !exists {
+		if err := db.InsertData(ownerData, "owner_info"); err != nil {
+			slog.Debug("Error inserting ownerData", "error", err)
+			return err
 		}
 	}
-	rvTO2Addrs = append(rvTO2Addrs, rvTO2Addr)
 
-	return rvTO2Addrs, nil
+	return nil
 }

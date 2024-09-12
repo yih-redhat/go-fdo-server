@@ -20,7 +20,7 @@ func InitDb(state *sqlite.DB) error {
 		slog.Error("Failed to create table")
 		return err
 	}
-	if err := createOwnInfoTable(); err != nil {
+	if err := createOwnerInfoTable(); err != nil {
 		slog.Error("Failed to create table")
 		return err
 	}
@@ -39,7 +39,7 @@ func createRvTable() error {
 	return nil
 }
 
-func createOwnInfoTable() error {
+func createOwnerInfoTable() error {
 	query := `CREATE TABLE IF NOT EXISTS owner_info (
 		id INTEGER PRIMARY KEY CHECK (id = 1),
 		value TEXT

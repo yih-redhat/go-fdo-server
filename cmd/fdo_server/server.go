@@ -52,8 +52,6 @@ var (
 	dbPath      string
 	dbPass      string
 	extAddr     string
-	to0Addr     string
-	to0Guid     string
 	rvBypass    bool
 	downloads   stringList
 	uploadDir   string
@@ -76,12 +74,9 @@ func init() {
 	serverFlags.StringVar(&dbPath, "db", "", "SQLite database file path")
 	serverFlags.StringVar(&dbPass, "db-pass", "", "SQLite database encryption-at-rest passphrase")
 	serverFlags.BoolVar(&debug, "debug", debug, "Print HTTP contents")
-	serverFlags.StringVar(&to0Addr, "to0", "", "Rendezvous server `addr`ess to register RV blobs (disables self-registration)")
-	serverFlags.StringVar(&to0Guid, "to0-guid", "", "Device `guid` to immediately register an RV blob (requires to0 flag)")
 	serverFlags.StringVar(&extAddr, "ext-http", "", "External `addr`ess devices should connect to (default \"127.0.0.1:${LISTEN_PORT}\")")
 	serverFlags.StringVar(&addr, "http", "localhost:8080", "The `addr`ess to listen on")
 	serverFlags.BoolVar(&insecureTLS, "insecure-tls", false, "Listen with a self-signed TLS certificate")
-	serverFlags.BoolVar(&rvBypass, "rv-bypass", false, "Skip TO1")
 	serverFlags.Var(&downloads, "download", "Use fdo.download FSIM for each `file` (flag may be used multiple times)")
 	serverFlags.StringVar(&uploadDir, "upload-dir", "uploads", "The directory `path` to put file uploads")
 	serverFlags.Var(&uploadReqs, "upload", "Use fdo.upload FSIM for each `file` (flag may be used multiple times)")
@@ -182,9 +177,15 @@ func server() error {
 		return err
 	}
 
+	if rvInfo != nil {
+		rvBypass = rvinfo.HasRVBypass(rvInfo)
+	} else {
+		rvBypass = false
+	}
+
 	// CreateRvInfo initializes new RV info if not found in DB
 	if rvInfo == nil {
-		rvInfo, err = rvinfo.CreateRvInfo(useTLS, host, port, rvBypass)
+		rvInfo, err = rvinfo.CreateRvInfo(useTLS, host, port)
 		if err != nil {
 			return err
 		}
@@ -220,7 +221,7 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 //nolint:gocyclo
 func newService(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) (*fdo.Server, error) {
 	// Auto-register RV blob so that TO1 can be tested
-	if to0Addr == "" && !rvBypass {
+	if !rvBypass {
 		to1URLs, _ := fdo.BaseHTTP(rvInfo)
 		to1URL, err := url.Parse(to1URLs[0])
 		if err != nil {

@@ -29,7 +29,7 @@ func (h *HTTPHandler) RegisterRoutes() *http.ServeMux {
 	handler := http.NewServeMux()
 	handler.Handle("POST /fdo/101/msg/{msg}", &transport.Handler{Responder: h.svc})
 	handler.HandleFunc("/api/v1/rvinfo", handlers.RvInfoHandler(h.svc, h.rvInfo))
-	handler.HandleFunc("/api/v1/owner/redirect", handlers.OwnInfoHandler)
+	handler.HandleFunc("/api/v1/owner/redirect", handlers.OwnerInfoHandler)
 	handler.HandleFunc("/api/v1/to0/", handlers.To0Handler(h.svc, h.state))
 	handler.HandleFunc("/api/v1/vouchers", handlers.GetVoucherHandler)
 	handler.HandleFunc("/api/v1/owner/vouchers", handlers.InsertVoucherHandler(h.svc, h.rvInfo))

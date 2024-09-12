@@ -16,7 +16,7 @@ import (
 	"github.com/fido-device-onboard/go-fdo/cbor"
 )
 
-func CreateRvInfo(useTLS bool, host string, port uint16, rvBypass bool) ([][]fdo.RvInstruction, error) {
+func CreateRvInfo(useTLS bool, host string, port uint16) ([][]fdo.RvInstruction, error) {
 	prot := fdo.RVProtHTTP
 	if useTLS {
 		prot = fdo.RVProtHTTPS
@@ -32,10 +32,6 @@ func CreateRvInfo(useTLS bool, host string, port uint16, rvBypass bool) ([][]fdo
 	}
 
 	rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDevPort, Value: utils.MustMarshal(port)})
-
-	if rvBypass {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVBypass})
-	}
 
 	return rvInfo, nil
 }
@@ -227,4 +223,15 @@ func GetRvInfoFromVoucher(voucherData []byte) ([][]fdo.RvInstruction, error) {
 	}
 
 	return voucher.Header.Val.RvInfo, nil
+}
+
+func HasRVBypass(rvInfo [][]fdo.RvInstruction) bool {
+	for _, instructions := range rvInfo {
+		for _, instruction := range instructions {
+			if instruction.Variable == fdo.RVBypass {
+				return true
+			}
+		}
+	}
+	return false
 }

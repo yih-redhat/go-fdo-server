@@ -14,7 +14,7 @@ import (
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 )
 
-func OwnInfoHandler(w http.ResponseWriter, r *http.Request) {
+func OwnerInfoHandler(w http.ResponseWriter, r *http.Request) {
 	var mu sync.Mutex
 	slog.Debug("Received OwnerInfo request", "method", r.Method, "path", r.URL.Path)
 	switch r.Method {

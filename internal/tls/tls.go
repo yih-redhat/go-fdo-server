@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache 2.0
 
-package main
+package tls
 
 import (
 	"crypto/tls"
@@ -15,7 +15,7 @@ import (
 
 var insecureTLS bool
 
-func tlsTransport(conf *tls.Config) fdo.Transport {
+func TlsTransport(conf *tls.Config) fdo.Transport {
 	if conf == nil {
 		conf = &tls.Config{
 			InsecureSkipVerify: insecureTLS, //nolint:gosec

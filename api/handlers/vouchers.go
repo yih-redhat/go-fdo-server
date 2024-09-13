@@ -7,11 +7,14 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"log/slog"
 
+	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 )
 
 func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
@@ -64,32 +67,41 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-func InsertVoucherHandler(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		Voucher   db.Voucher    `json:"voucher"`
-		OwnerKeys []db.OwnerKey `json:"owner_keys"`
+func InsertVoucherHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Voucher   db.Voucher    `json:"voucher"`
+			OwnerKeys []db.OwnerKey `json:"owner_keys"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			return
+		}
+
+		guidHex := hex.EncodeToString(request.Voucher.GUID)
+		slog.Debug("Inserting voucher", "GUID", guidHex)
+
+		if err := db.InsertVoucher(request.Voucher); err != nil {
+			slog.Debug("Error inserting into database", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if err := db.UpdateOwnerKeys(request.OwnerKeys); err != nil {
+			slog.Debug("Error updating owner key in database", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		newRvInfo, err := rvinfo.GetRvInfoFromVoucher(request.Voucher.CBOR)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		*rvInfo = newRvInfo
+		srv.RvInfo = *rvInfo
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(guidHex))
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
-	guidHex := hex.EncodeToString(request.Voucher.GUID)
-	slog.Debug("Inserting voucher", "GUID", guidHex)
-
-	if err := db.InsertVoucher(request.Voucher); err != nil {
-		slog.Debug("Error inserting into database", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if err := db.UpdateOwnerKeys(request.OwnerKeys); err != nil {
-		slog.Debug("Error updating owner key in database", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(guidHex))
 }

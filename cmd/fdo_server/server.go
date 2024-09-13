@@ -15,7 +15,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,6 +37,7 @@ import (
 	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/api"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo-server/internal/ownerinfo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 	"github.com/fido-device-onboard/go-fdo/fsim"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
@@ -47,17 +47,16 @@ import (
 var serverFlags = flag.NewFlagSet("server", flag.ContinueOnError)
 
 var (
-	useTLS     bool
-	addr       string
-	dbPath     string
-	dbPass     string
-	extAddr    string
-	to0Addr    string
-	to0Guid    string
-	rvBypass   bool
-	downloads  stringList
-	uploadDir  string
-	uploadReqs stringList
+	useTLS      bool
+	addr        string
+	dbPath      string
+	dbPass      string
+	extAddr     string
+	rvBypass    bool
+	downloads   stringList
+	uploadDir   string
+	uploadReqs  stringList
+	insecureTLS bool
 )
 
 type stringList []string
@@ -75,12 +74,9 @@ func init() {
 	serverFlags.StringVar(&dbPath, "db", "", "SQLite database file path")
 	serverFlags.StringVar(&dbPass, "db-pass", "", "SQLite database encryption-at-rest passphrase")
 	serverFlags.BoolVar(&debug, "debug", debug, "Print HTTP contents")
-	serverFlags.StringVar(&to0Addr, "to0", "", "Rendezvous server `addr`ess to register RV blobs (disables self-registration)")
-	serverFlags.StringVar(&to0Guid, "to0-guid", "", "Device `guid` to immediately register an RV blob (requires to0 flag)")
 	serverFlags.StringVar(&extAddr, "ext-http", "", "External `addr`ess devices should connect to (default \"127.0.0.1:${LISTEN_PORT}\")")
 	serverFlags.StringVar(&addr, "http", "localhost:8080", "The `addr`ess to listen on")
 	serverFlags.BoolVar(&insecureTLS, "insecure-tls", false, "Listen with a self-signed TLS certificate")
-	serverFlags.BoolVar(&rvBypass, "rv-bypass", false, "Skip TO1")
 	serverFlags.Var(&downloads, "download", "Use fdo.download FSIM for each `file` (flag may be used multiple times)")
 	serverFlags.StringVar(&uploadDir, "upload-dir", "uploads", "The directory `path` to put file uploads")
 	serverFlags.Var(&uploadReqs, "upload", "Use fdo.upload FSIM for each `file` (flag may be used multiple times)")
@@ -181,18 +177,26 @@ func server() error {
 		return err
 	}
 
+	if rvInfo != nil {
+		rvBypass = rvinfo.HasRVBypass(rvInfo)
+	} else {
+		rvBypass = false
+	}
+
 	// CreateRvInfo initializes new RV info if not found in DB
 	if rvInfo == nil {
-		rvInfo, err = rvinfo.CreateRvInfo(useTLS, host, port, rvBypass)
+		rvInfo, err = rvinfo.CreateRvInfo(useTLS, host, port)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Invoke TO0 client if a GUID is specified
-	if to0Guid != "" {
-		return registerRvBlob(host, port, state)
+	// CreateRvTO2Addr initializes new owner info and stores it with default values if not found in DB
+	err = ownerinfo.CreateRvTO2Addr(host, port, useTLS)
+	if err != nil {
+		return fmt.Errorf("failed to create and store rvTO2Addrs: %v", err)
 	}
+
 	return serveHTTP(rvInfo, state)
 }
 
@@ -205,7 +209,7 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 	svc.OwnerModules = ownerModules
 
 	// Handle messages
-	handler := api.NewHTTPHandler(svc, &rvInfo).RegisterRoutes()
+	handler := api.NewHTTPHandler(svc, &rvInfo, state).RegisterRoutes()
 	// Listen and serve
 	server := NewServer(addr, handler, useTLS, state)
 
@@ -214,51 +218,10 @@ func serveHTTP(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) error {
 
 }
 
-func registerRvBlob(host string, port uint16, state *sqlite.DB) error {
-	if to0Addr == "" {
-		return fmt.Errorf("to0-guid depends on to0 flag being set")
-	}
-
-	// Parse to0-guid flag
-	guidBytes, err := hex.DecodeString(to0Guid)
-	if err != nil {
-		return fmt.Errorf("error parsing hex GUID of device to register RV blob: %w", err)
-	}
-	if len(guidBytes) != 16 {
-		return fmt.Errorf("error parsing hex GUID of device to register RV blob: must be 16 bytes")
-	}
-	var guid fdo.GUID
-	copy(guid[:], guidBytes)
-
-	proto := fdo.HTTPTransport
-	if useTLS {
-		proto = fdo.HTTPSTransport
-	}
-
-	refresh, err := (&fdo.TO0Client{
-		Transport: tlsTransport(nil),
-		Addrs: []fdo.RvTO2Addr{
-			{
-				DNSAddress:        &host,
-				Port:              port,
-				TransportProtocol: proto,
-			},
-		},
-		Vouchers:  state,
-		OwnerKeys: state,
-	}).RegisterBlob(context.Background(), to0Addr, guid)
-	if err != nil {
-		return fmt.Errorf("error performing to0: %w", err)
-	}
-	slog.Debug("to0 refresh", "duration", time.Duration(refresh)*time.Second)
-
-	return nil
-}
-
 //nolint:gocyclo
 func newService(rvInfo [][]fdo.RvInstruction, state *sqlite.DB) (*fdo.Server, error) {
 	// Auto-register RV blob so that TO1 can be tested
-	if to0Addr == "" && !rvBypass {
+	if !rvBypass {
 		to1URLs, _ := fdo.BaseHTTP(rvInfo)
 		to1URL, err := url.Parse(to1URLs[0])
 		if err != nil {

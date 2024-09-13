@@ -20,11 +20,27 @@ func InitDb(state *sqlite.DB) error {
 		slog.Error("Failed to create table")
 		return err
 	}
+	if err := createOwnerInfoTable(); err != nil {
+		slog.Error("Failed to create table")
+		return err
+	}
 	return nil
 }
 
 func createRvTable() error {
 	query := `CREATE TABLE IF NOT EXISTS rvinfo (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		value TEXT
+	);`
+	_, err := db.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func createOwnerInfoTable() error {
+	query := `CREATE TABLE IF NOT EXISTS owner_info (
 		id INTEGER PRIMARY KEY CHECK (id = 1),
 		value TEXT
 	);`
@@ -74,43 +90,47 @@ func UpdateOwnerKeys(ownerKeys []OwnerKey) error {
 	return nil
 }
 
-func CheckRvDataExists() (bool, error) {
+func CheckDataExists(tableName string) (bool, error) {
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM rvinfo WHERE id = 1").Scan(&count)
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id = 1", tableName)
+	err := db.QueryRow(query).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("error counting rows: %w", err)
 	}
 	return count > 0, nil
 }
 
-func InsertRvData(data Data) error {
+func InsertData(data Data, tableName string) error {
 	value, err := json.Marshal(data.Value)
 	if err != nil {
 		return fmt.Errorf("error marshalling value: %w", err)
 	}
-	_, err = db.Exec("INSERT INTO rvinfo (id, value) VALUES (1, ?)", string(value))
+	query := fmt.Sprintf("INSERT INTO %s (id, value) VALUES (1, ?)", tableName)
+	_, err = db.Exec(query, string(value))
 	if err != nil {
 		return fmt.Errorf("error inserting data: %w", err)
 	}
 	return nil
 }
 
-func UpdateRvDataInDB(data Data) error {
+func UpdateDataInDB(data Data, tableName string) error {
 	value, err := json.Marshal(data.Value)
 	if err != nil {
 		return fmt.Errorf("error marshalling value: %w", err)
 	}
-	_, err = db.Exec("UPDATE rvinfo SET value = ? WHERE id = 1", string(value))
+	query := fmt.Sprintf("UPDATE %s SET value = ? WHERE id = 1", tableName)
+	_, err = db.Exec(query, string(value))
 	if err != nil {
 		return fmt.Errorf("error updating data: %w", err)
 	}
 	return nil
 }
 
-func FetchRvData() (Data, error) {
+func FetchData(tableName string) (Data, error) {
 	var data Data
 	var value string
-	err := db.QueryRow("SELECT value FROM rvinfo WHERE id = 1").Scan(&value)
+	query := fmt.Sprintf("SELECT value FROM %s WHERE id = 1", tableName)
+	err := db.QueryRow(query).Scan(&value)
 	if err != nil {
 		return data, err
 	}

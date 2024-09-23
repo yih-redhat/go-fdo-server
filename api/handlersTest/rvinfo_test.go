@@ -15,8 +15,6 @@ import (
 )
 
 func setupTestRvServer(t *testing.T) (*httptest.Server, *sqlite.DB) {
-	cleanup := func() error { return os.Remove("test.db") }
-	_ = cleanup()
 
 	state, err := sqlite.New("test.db", "")
 	if err != nil {
@@ -50,6 +48,9 @@ func setupTestRvServer(t *testing.T) (*httptest.Server, *sqlite.DB) {
 }
 
 func TestRVInfoHandler(t *testing.T) {
+
+	cleanup := func() error { return os.Remove("test.db") }
+	defer cleanup()
 
 	server, state := setupTestRvServer(t)
 	defer server.Close()
@@ -89,7 +90,7 @@ func TestRVInfoHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("PUT RVInfo", func(t *testing.T) {
+	t.Run("PUT ownerinfo", func(t *testing.T) {
 		requestBody := bytes.NewReader([]byte(`[["3","127.1.1.1"],["5","localhost"],["2","8080"]]`))
 
 		// Create a PUT request

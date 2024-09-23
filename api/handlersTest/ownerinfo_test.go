@@ -13,8 +13,6 @@ import (
 )
 
 func setupTestServer(t *testing.T, handlerFunc http.HandlerFunc) (*httptest.Server, *sqlite.DB) {
-	cleanup := func() error { return os.Remove("test.db") }
-	_ = cleanup()
 
 	state, err := sqlite.New("test.db", "")
 	if err != nil {
@@ -30,13 +28,16 @@ func setupTestServer(t *testing.T, handlerFunc http.HandlerFunc) (*httptest.Serv
 	return server, state
 }
 
-func TestOwnerInfohandler(t *testing.T) {
+func TestOwnerInfoHandler(t *testing.T) {
+
+	cleanup := func() error { return os.Remove("test.db") }
+	defer cleanup()
 
 	server, state := setupTestServer(t, handlers.OwnerInfoHandler)
 	defer server.Close()
 	defer state.Close()
 
-	t.Run("POST ownerinfo", func(t *testing.T) {
+	t.Run("POST OwnerInfo", func(t *testing.T) {
 		requestBody := bytes.NewReader([]byte(`["127.0.0.1", "localhost", "8043"]`))
 
 		// Perform the POST request
@@ -52,7 +53,7 @@ func TestOwnerInfohandler(t *testing.T) {
 		}
 	})
 
-	t.Run("GET ownerinfo", func(t *testing.T) {
+	t.Run("GET OwnerInfo", func(t *testing.T) {
 		response, _ := http.Get(server.URL)
 
 		if response.StatusCode != http.StatusOK {
@@ -62,15 +63,15 @@ func TestOwnerInfohandler(t *testing.T) {
 		var responseBody db.Data
 		err := json.NewDecoder(response.Body).Decode(&responseBody)
 		if err != nil {
-			t.Errorf("Unable to parse owner info response %v", err)
+			t.Errorf("Unable to parse OwnerInfo response %v", err)
 		}
 		values, _ := responseBody.Value.([]interface{})
 		if len(values) != 3 {
-			t.Errorf("Wrong owner info response %v", values)
+			t.Errorf("Wrong OwnerInfo response %v", values)
 		}
 	})
 
-	t.Run("PUT ownerinfo", func(t *testing.T) {
+	t.Run("PUT OwnerInfo", func(t *testing.T) {
 		requestBody := bytes.NewReader([]byte(`["127.0.0.1", "localhost", "8080"]`))
 
 		// Create a PUT request

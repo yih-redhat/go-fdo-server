@@ -47,16 +47,18 @@ import (
 var serverFlags = flag.NewFlagSet("server", flag.ContinueOnError)
 
 var (
-	useTLS      bool
-	addr        string
-	dbPath      string
-	dbPass      string
-	extAddr     string
-	rvBypass    bool
-	downloads   stringList
-	uploadDir   string
-	uploadReqs  stringList
-	insecureTLS bool
+	useTLS         bool
+	addr           string
+	dbPath         string
+	dbPass         string
+	extAddr        string
+	rvBypass       bool
+	downloads      stringList
+	uploadDir      string
+	uploadReqs     stringList
+	insecureTLS    bool
+	serverCertPath string
+	serverKeyPath  string
 )
 
 type stringList []string
@@ -77,6 +79,8 @@ func init() {
 	serverFlags.StringVar(&extAddr, "ext-http", "", "External `addr`ess devices should connect to (default \"127.0.0.1:${LISTEN_PORT}\")")
 	serverFlags.StringVar(&addr, "http", "localhost:8080", "The `addr`ess to listen on")
 	serverFlags.BoolVar(&insecureTLS, "insecure-tls", false, "Listen with a self-signed TLS certificate")
+	serverFlags.StringVar(&serverCertPath, "server-cert", "", "Path to server certificate")
+	serverFlags.StringVar(&serverKeyPath, "server-key", "", "Path to server private key")
 	serverFlags.Var(&downloads, "download", "Use fdo.download FSIM for each `file` (flag may be used multiple times)")
 	serverFlags.StringVar(&uploadDir, "upload-dir", "uploads", "The directory `path` to put file uploads")
 	serverFlags.Var(&uploadReqs, "upload", "Use fdo.upload FSIM for each `file` (flag may be used multiple times)")
@@ -121,15 +125,23 @@ func (s *Server) Start() error {
 	}()
 
 	if s.useTLS {
-		cert, err := tlsCert(s.state.DB())
-		if err != nil {
-			return err
+		if serverCertPath != "" && serverKeyPath != "" {
+			srv.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+			return srv.ListenAndServeTLS(serverCertPath, serverKeyPath)
+		} else {
+			cert, err := tlsCert(s.state.DB())
+			if err != nil {
+				return err
+			}
+			srv.TLSConfig = &tls.Config{
+				MinVersion:   tls.VersionTLS12,
+				Certificates: []tls.Certificate{*cert},
+			}
+			return srv.ListenAndServeTLS("", "")
 		}
-		srv.TLSConfig = &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{*cert},
-		}
-		return srv.ListenAndServeTLS("", "")
+
 	}
 	return srv.ListenAndServe()
 }

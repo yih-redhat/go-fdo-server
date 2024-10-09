@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
+	"github.com/fido-device-onboard/go-fdo/protocol"
 )
 
-func RetrieveOwnerInfo() ([]fdo.RvTO2Addr, error) {
+func RetrieveOwnerInfo() ([]protocol.RvTO2Addr, error) {
 	ownerData, err := db.FetchData("owner_info")
 	if err != nil {
 		return nil, fmt.Errorf("error fetching rvData after POST: %w", err)
@@ -27,8 +27,8 @@ func RetrieveOwnerInfo() ([]fdo.RvTO2Addr, error) {
 	return rvTO2Addrs, nil
 }
 
-func FetchOwnerInfo() ([]fdo.RvTO2Addr, error) {
-	var ownerInfo []fdo.RvTO2Addr
+func FetchOwnerInfo() ([]protocol.RvTO2Addr, error) {
+	var ownerInfo []protocol.RvTO2Addr
 
 	if exists, err := db.CheckDataExists("owner_info"); err != nil {
 		slog.Debug("Error checking ownerInfo existence", "error", err)
@@ -44,8 +44,8 @@ func FetchOwnerInfo() ([]fdo.RvTO2Addr, error) {
 	return ownerInfo, nil
 }
 
-func ParseRvTO2Addr(ownerData []interface{}) ([]fdo.RvTO2Addr, error) {
-	var rvTO2Addrs []fdo.RvTO2Addr
+func ParseRvTO2Addr(ownerData []interface{}) ([]protocol.RvTO2Addr, error) {
+	var rvTO2Addrs []protocol.RvTO2Addr
 	for _, item := range ownerData {
 		itemSlice, ok := item.([]interface{})
 		if !ok || len(itemSlice) != 4 {
@@ -76,16 +76,16 @@ func ParseRvTO2Addr(ownerData []interface{}) ([]fdo.RvTO2Addr, error) {
 			return nil, fmt.Errorf("invalid port format")
 		}
 
-		protocol, ok := itemSlice[3].(float64)
+		proto, ok := itemSlice[3].(float64)
 		if !ok {
 			return nil, fmt.Errorf("invalid transport protocol format")
 		}
 
-		rvTO2Addr := fdo.RvTO2Addr{
+		rvTO2Addr := protocol.RvTO2Addr{
 			IPAddress:         ip,
 			DNSAddress:        dnsStr,
 			Port:              uint16(port),
-			TransportProtocol: fdo.TransportProtocol(protocol),
+			TransportProtocol: protocol.TransportProtocol(proto),
 		}
 		rvTO2Addrs = append(rvTO2Addrs, rvTO2Addr)
 	}
@@ -98,11 +98,11 @@ func CreateRvTO2Addr(host string, port uint16, useTLS bool) error {
 
 	ip := net.ParseIP(host)
 
-	var protocol fdo.TransportProtocol
+	var proto protocol.TransportProtocol
 	if useTLS {
-		protocol = fdo.HTTPSTransport
+		proto = protocol.HTTPSTransport
 	} else {
-		protocol = fdo.HTTPTransport
+		proto = protocol.HTTPTransport
 	}
 
 	if ip != nil {
@@ -110,14 +110,14 @@ func CreateRvTO2Addr(host string, port uint16, useTLS bool) error {
 			ip.String(),
 			nil,
 			port,
-			protocol,
+			proto,
 		})
 	} else {
 		rvTO2Addrs = append(rvTO2Addrs, []interface{}{
 			nil,
 			host,
 			port,
-			protocol,
+			proto,
 		})
 	}
 

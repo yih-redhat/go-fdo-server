@@ -14,29 +14,30 @@ import (
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/utils"
 	"github.com/fido-device-onboard/go-fdo/cbor"
+	"github.com/fido-device-onboard/go-fdo/protocol"
 )
 
-func CreateRvInfo(useTLS bool, host string, port uint16) ([][]fdo.RvInstruction, error) {
-	prot := fdo.RVProtHTTP
+func CreateRvInfo(useTLS bool, host string, port uint16) ([][]protocol.RvInstruction, error) {
+	prot := protocol.RVProtHTTP
 	if useTLS {
-		prot = fdo.RVProtHTTPS
+		prot = protocol.RVProtHTTPS
 	}
-	rvInfo := [][]fdo.RvInstruction{{{Variable: fdo.RVProtocol, Value: utils.MustMarshal(prot)}}}
+	rvInfo := [][]protocol.RvInstruction{{{Variable: protocol.RVProtocol, Value: utils.MustMarshal(prot)}}}
 
 	if host == "" {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: utils.MustMarshal(net.IP{127, 0, 0, 1})})
+		rvInfo[0] = append(rvInfo[0], protocol.RvInstruction{Variable: protocol.RVIPAddress, Value: utils.MustMarshal(net.IP{127, 0, 0, 1})})
 	} else if hostIP := net.ParseIP(host); hostIP.To4() != nil || hostIP.To16() != nil {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: utils.MustMarshal(hostIP)})
+		rvInfo[0] = append(rvInfo[0], protocol.RvInstruction{Variable: protocol.RVIPAddress, Value: utils.MustMarshal(hostIP)})
 	} else {
-		rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDns, Value: utils.MustMarshal(host)})
+		rvInfo[0] = append(rvInfo[0], protocol.RvInstruction{Variable: protocol.RVDns, Value: utils.MustMarshal(host)})
 	}
 
-	rvInfo[0] = append(rvInfo[0], fdo.RvInstruction{Variable: fdo.RVDevPort, Value: utils.MustMarshal(port)})
+	rvInfo[0] = append(rvInfo[0], protocol.RvInstruction{Variable: protocol.RVDevPort, Value: utils.MustMarshal(port)})
 
 	return rvInfo, nil
 }
 
-func RetrieveRvInfo(rvInfo *[][]fdo.RvInstruction) error {
+func RetrieveRvInfo(rvInfo *[][]protocol.RvInstruction) error {
 	rvData, err := db.FetchData("rvinfo")
 	if err != nil {
 		return fmt.Errorf("error fetching rvData after POST: %w", err)
@@ -60,8 +61,8 @@ func RetrieveRvInfo(rvInfo *[][]fdo.RvInstruction) error {
 	return nil
 }
 
-func ParseRvMap(rvDirectiveIndex int, rvDirective interface{}) (map[fdo.RvVar]interface{}, error) {
-	rvMap := make(map[fdo.RvVar]interface{})
+func ParseRvMap(rvDirectiveIndex int, rvDirective interface{}) (map[protocol.RvVar]interface{}, error) {
+	rvMap := make(map[protocol.RvVar]interface{})
 	nestedItems, ok := rvDirective.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("error parsing item: %v", rvDirective)
@@ -79,62 +80,62 @@ func ParseRvMap(rvDirectiveIndex int, rvDirective interface{}) (map[fdo.RvVar]in
 			return nil, fmt.Errorf("error converting key to float64 in pair %d: %v", rvPairIndex, key)
 		}
 
-		rvMap[fdo.RvVar(keyRvVar)] = value
-		utils.LogRvVar(rvDirectiveIndex, fdo.RvVar(keyRvVar), value)
+		rvMap[protocol.RvVar(keyRvVar)] = value
+		utils.LogRvVar(rvDirectiveIndex, protocol.RvVar(keyRvVar), value)
 	}
 	return rvMap, nil
 }
 
-func UpdateRvInfo(rvInfo *[][]fdo.RvInstruction, index int, rvMap map[fdo.RvVar]interface{}) error {
-	var newRvInfo [][]fdo.RvInstruction
+func UpdateRvInfo(rvInfo *[][]protocol.RvInstruction, index int, rvMap map[protocol.RvVar]interface{}) error {
+	var newRvInfo [][]protocol.RvInstruction
 
 	if index > 0 {
-		newRvInfo = make([][]fdo.RvInstruction, len(*rvInfo))
+		newRvInfo = make([][]protocol.RvInstruction, len(*rvInfo))
 		copy(newRvInfo, *rvInfo)
 	}
 
 	for len(newRvInfo) <= index {
-		newRvInfo = append(newRvInfo, make([]fdo.RvInstruction, 0))
+		newRvInfo = append(newRvInfo, make([]protocol.RvInstruction, 0))
 	}
 
-	if rvMap[fdo.RVProtocol] == nil {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVProtocol, Value: utils.MustMarshal(fdo.RVProtHTTP)})
+	if rvMap[protocol.RVProtocol] == nil {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVProtocol, Value: utils.MustMarshal(protocol.RVProtHTTP)})
 	} else {
-		isHttp := fdo.RvProt(rvMap[fdo.RVProtocol].(float64))
-		if isHttp == fdo.RVProtHTTP {
-			newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVProtocol, Value: utils.MustMarshal(fdo.RVProtHTTP)})
+		isHttp := uint8(rvMap[protocol.RVProtocol].(float64))
+		if isHttp == protocol.RVProtHTTP {
+			newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVProtocol, Value: utils.MustMarshal(protocol.RVProtHTTP)})
 		} else {
-			newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVProtocol, Value: utils.MustMarshal(fdo.RVProtHTTPS)})
+			newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVProtocol, Value: utils.MustMarshal(protocol.RVProtHTTPS)})
 		}
 	}
 
-	host := rvMap[fdo.RVIPAddress].(string)
+	host := rvMap[protocol.RVIPAddress].(string)
 	if host == "" {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: utils.MustMarshal(net.IP{127, 0, 0, 1})})
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVIPAddress, Value: utils.MustMarshal(net.IP{127, 0, 0, 1})})
 	} else if hostIP := net.ParseIP(host); hostIP.To4() != nil || hostIP.To16() != nil {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVIPAddress, Value: utils.MustMarshal(hostIP)})
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVIPAddress, Value: utils.MustMarshal(hostIP)})
 	} else {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVDns, Value: utils.MustMarshal(host)})
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVDns, Value: utils.MustMarshal(host)})
 	}
 
-	if rvMap[fdo.RVDevPort] != nil {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVDevPort, Value: utils.MustMarshal(uint16(rvMap[fdo.RVDevPort].(float64)))})
+	if rvMap[protocol.RVDevPort] != nil {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVDevPort, Value: utils.MustMarshal(uint16(rvMap[protocol.RVDevPort].(float64)))})
 	}
 
-	if rvMap[fdo.RVOwnerPort] != nil {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVOwnerPort, Value: utils.MustMarshal(uint16(rvMap[fdo.RVOwnerPort].(float64)))})
+	if rvMap[protocol.RVOwnerPort] != nil {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVOwnerPort, Value: utils.MustMarshal(uint16(rvMap[protocol.RVOwnerPort].(float64)))})
 	}
 
-	if rvMap[fdo.RVDelaysec] != nil {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVDelaysec, Value: utils.MustMarshal(uint16(rvMap[fdo.RVDelaysec].(float64)))})
+	if rvMap[protocol.RVDelaysec] != nil {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVDelaysec, Value: utils.MustMarshal(uint16(rvMap[protocol.RVDelaysec].(float64)))})
 	}
 
-	if rvMap[fdo.RVBypass] == nil {
-		newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVBypass, Value: utils.MustMarshal(false)})
+	if rvMap[protocol.RVBypass] == nil {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVBypass, Value: utils.MustMarshal(false)})
 	} else {
-		rvBypass := rvMap[fdo.RVBypass].(bool)
+		rvBypass := rvMap[protocol.RVBypass].(bool)
 		if rvBypass {
-			newRvInfo[index] = append(newRvInfo[index], fdo.RvInstruction{Variable: fdo.RVBypass})
+			newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVBypass})
 		}
 	}
 
@@ -143,8 +144,8 @@ func UpdateRvInfo(rvInfo *[][]fdo.RvInstruction, index int, rvMap map[fdo.RvVar]
 	return nil
 }
 
-func FetchRvInfo() ([][]fdo.RvInstruction, error) {
-	var rvInfo [][]fdo.RvInstruction
+func FetchRvInfo() ([][]protocol.RvInstruction, error) {
+	var rvInfo [][]protocol.RvInstruction
 
 	if exists, err := db.CheckDataExists("rvinfo"); err != nil {
 		slog.Debug("Error checking rvData existence", "error", err)
@@ -160,29 +161,29 @@ func FetchRvInfo() ([][]fdo.RvInstruction, error) {
 	return rvInfo, nil
 }
 
-func GetRVIPAddress(rvInfo [][]fdo.RvInstruction) (string, error) {
+func GetRVIPAddress(rvInfo [][]protocol.RvInstruction) (string, error) {
 	var ipAddress, dnsAddress string
 	var port uint16
-	var protocol fdo.RvProt
+	var proto uint8
 
 	for _, instructions := range rvInfo {
 		for _, instruction := range instructions {
 			var err error
 			switch instruction.Variable {
-			case fdo.RVIPAddress:
+			case protocol.RVIPAddress:
 				var ip []byte
 				err = cbor.Unmarshal(instruction.Value, &ip)
 				if err == nil {
 					ipAddress = net.IP(ip).String()
 				}
-			case fdo.RVDns:
+			case protocol.RVDns:
 				err = cbor.Unmarshal(instruction.Value, &dnsAddress)
-			case fdo.RVDevPort, fdo.RVOwnerPort:
+			case protocol.RVDevPort, protocol.RVOwnerPort:
 				err = cbor.Unmarshal(instruction.Value, &port)
-			case fdo.RVProtocol:
+			case protocol.RVProtocol:
 				var prot uint8
 				err = cbor.Unmarshal(instruction.Value, &prot)
-				protocol = fdo.RvProt(prot)
+				proto = uint8(prot)
 			}
 			if err != nil {
 				return "", fmt.Errorf("invalid format for %v: %v", instruction.Variable, err)
@@ -199,10 +200,10 @@ func GetRVIPAddress(rvInfo [][]fdo.RvInstruction) (string, error) {
 		host = dnsAddress
 	}
 
-	scheme := map[fdo.RvProt]string{
-		fdo.RVProtHTTP:  "http",
-		fdo.RVProtHTTPS: "https",
-	}[protocol]
+	scheme := map[uint8]string{
+		protocol.RVProtHTTP:  "http",
+		protocol.RVProtHTTPS: "https",
+	}[proto]
 
 	if scheme == "" {
 		return "", fmt.Errorf("unsupported protocol")
@@ -216,7 +217,7 @@ func GetRVIPAddress(rvInfo [][]fdo.RvInstruction) (string, error) {
 	return u.String(), nil
 }
 
-func GetRvInfoFromVoucher(voucherData []byte) ([][]fdo.RvInstruction, error) {
+func GetRvInfoFromVoucher(voucherData []byte) ([][]protocol.RvInstruction, error) {
 	var voucher fdo.Voucher
 	if err := cbor.Unmarshal(voucherData, &voucher); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal voucher: %v", err)
@@ -225,10 +226,10 @@ func GetRvInfoFromVoucher(voucherData []byte) ([][]fdo.RvInstruction, error) {
 	return voucher.Header.Val.RvInfo, nil
 }
 
-func HasRVBypass(rvInfo [][]fdo.RvInstruction) bool {
+func HasRVBypass(rvInfo [][]protocol.RvInstruction) bool {
 	for _, instructions := range rvInfo {
 		for _, instruction := range instructions {
-			if instruction.Variable == fdo.RVBypass {
+			if instruction.Variable == protocol.RVBypass {
 				return true
 			}
 		}

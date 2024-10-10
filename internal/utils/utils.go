@@ -6,8 +6,8 @@ package utils
 import (
 	"log/slog"
 
-	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo/cbor"
+	"github.com/fido-device-onboard/go-fdo/protocol"
 )
 
 func MustMarshal(v any) []byte {
@@ -18,39 +18,39 @@ func MustMarshal(v any) []byte {
 	return data
 }
 
-func LogRvVar(index int, key fdo.RvVar, value interface{}) {
+func LogRvVar(index int, key protocol.RvVar, value interface{}) {
 	switch key {
-	case fdo.RVDevOnly:
+	case protocol.RVDevOnly:
 		slog.Debug("RV ->", "index", index, "key", "RVDevOnly", "value", value)
-	case fdo.RVOwnerOnly:
+	case protocol.RVOwnerOnly:
 		slog.Debug("RV ->", "index", index, "key", "RVOwnerOnly", "value", value)
-	case fdo.RVIPAddress:
+	case protocol.RVIPAddress:
 		slog.Debug("RV ->", "index", index, "key", "RVIPAddress", "value", value)
-	case fdo.RVDevPort:
+	case protocol.RVDevPort:
 		slog.Debug("RV ->", "index", index, "key", "RVDevPort", "value", value)
-	case fdo.RVOwnerPort:
+	case protocol.RVOwnerPort:
 		slog.Debug("RV ->", "index", index, "key", "RVOwnerPort", "value", value)
-	case fdo.RVDns:
+	case protocol.RVDns:
 		slog.Debug("RV ->", "index", index, "key", "RVDns", "value", value)
-	case fdo.RVSvCertHash:
+	case protocol.RVSvCertHash:
 		slog.Debug("RV ->", "index", index, "key", "RVSvCertHash", "value", value)
-	case fdo.RVClCertHash:
+	case protocol.RVClCertHash:
 		slog.Debug("RV ->", "index", index, "key", "RVClCertHash", "value", value)
-	case fdo.RVUserInput:
+	case protocol.RVUserInput:
 		slog.Debug("RV ->", "index", index, "key", "RVUserInput", "value", value)
-	case fdo.RVWifiSsid:
+	case protocol.RVWifiSsid:
 		slog.Debug("RV ->", "index", index, "key", "RVWifiSsid", "value", value)
-	case fdo.RVWifiPw:
+	case protocol.RVWifiPw:
 		slog.Debug("RV ->", "index", index, "key", "RVWifiPw", "value", value)
-	case fdo.RVMedium:
+	case protocol.RVMedium:
 		slog.Debug("RV ->", "index", index, "key", "RVMedium", "value", value)
-	case fdo.RVProtocol:
+	case protocol.RVProtocol:
 		slog.Debug("RV ->", "index", index, "key", "RVProtocol", "value", value)
-	case fdo.RVDelaysec:
+	case protocol.RVDelaysec:
 		slog.Debug("RV ->", "index", index, "key", "RVDelaysec", "value", value)
-	case fdo.RVBypass:
+	case protocol.RVBypass:
 		slog.Debug("RV ->", "index", index, "key", "RVBypass", "value", value)
-	case fdo.RVExtRV:
+	case protocol.RVExtRV:
 		slog.Debug("RV ->", "index", index, "key", "RVExtRV", "value", value)
 	default:
 		slog.Debug("RV ->", "index", index, "key", key, "value", value)

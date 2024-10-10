@@ -12,9 +12,9 @@ import (
 
 	"log/slog"
 
-	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
+	"github.com/fido-device-onboard/go-fdo/protocol"
 )
 
 func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +67,7 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-func InsertVoucherHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
+func InsertVoucherHandler(rvInfo *[][]protocol.RvInstruction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
 			Voucher   db.Voucher    `json:"voucher"`
@@ -100,7 +100,6 @@ func InsertVoucherHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.H
 			return
 		}
 		*rvInfo = newRvInfo
-		srv.RvInfo = *rvInfo
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(guidHex))
 	}

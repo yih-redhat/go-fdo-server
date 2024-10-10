@@ -14,10 +14,11 @@ import (
 	"github.com/fido-device-onboard/go-fdo-server/internal/ownerinfo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/tls"
+	"github.com/fido-device-onboard/go-fdo/protocol"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
 )
 
-func RegisterRvBlob(RvInfo [][]fdo.RvInstruction, to0Guid string, state *sqlite.DB) error {
+func RegisterRvBlob(RvInfo [][]protocol.RvInstruction, to0Guid string, state *sqlite.DB) error {
 
 	to0Addr, err := rvinfo.GetRVIPAddress(RvInfo)
 	if err != nil {
@@ -33,21 +34,19 @@ func RegisterRvBlob(RvInfo [][]fdo.RvInstruction, to0Guid string, state *sqlite.
 	if len(guidBytes) != 16 {
 		return fmt.Errorf("error parsing hex GUID of device to register RV blob: must be 16 bytes")
 	}
-	var guid fdo.GUID
+	var guid protocol.GUID
 	copy(guid[:], guidBytes)
 
 	// Retrieve owner info from DB
-	ownerInfo, err := ownerinfo.FetchOwnerInfo()
+	to2Addrs, err := ownerinfo.FetchOwnerInfo()
 	if err != nil {
 		return fmt.Errorf("error fetching ownerinfo: %w", err)
 	}
 
 	refresh, err := (&fdo.TO0Client{
-		Transport: tls.TlsTransport(nil),
-		Addrs:     ownerInfo,
 		Vouchers:  state,
 		OwnerKeys: state,
-	}).RegisterBlob(context.Background(), to0Addr, guid)
+	}).RegisterBlob(context.Background(), tls.TlsTransport(to0Addr, nil, false), guid, to2Addrs)
 	if err != nil {
 		return fmt.Errorf("error performing to0: %w", err)
 	}

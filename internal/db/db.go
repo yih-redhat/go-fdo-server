@@ -53,7 +53,7 @@ func createOwnerInfoTable() error {
 
 func FetchVoucher(guid []byte) (Voucher, error) {
 	var voucher Voucher
-	err := db.QueryRow("SELECT guid, cbor FROM vouchers WHERE guid = ?", guid).Scan(&voucher.GUID, &voucher.CBOR)
+	err := db.QueryRow("SELECT guid, cbor FROM owner_vouchers WHERE guid = ?", guid).Scan(&voucher.GUID, &voucher.CBOR)
 	return voucher, err
 }
 
@@ -76,7 +76,7 @@ func FetchOwnerKeys() ([]OwnerKey, error) {
 }
 
 func InsertVoucher(voucher Voucher) error {
-	_, err := db.Exec("INSERT INTO vouchers (guid, cbor) VALUES (?, ?)", voucher.GUID, voucher.CBOR)
+	_, err := db.Exec("INSERT INTO owner_vouchers (guid, cbor) VALUES (?, ?)", voucher.GUID, voucher.CBOR)
 	return err
 }
 

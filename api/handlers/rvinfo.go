@@ -13,12 +13,12 @@ import (
 
 	"log/slog"
 
-	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
+	"github.com/fido-device-onboard/go-fdo/protocol"
 )
 
-func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerFunc {
+func RvInfoHandler(rvInfo *[][]protocol.RvInstruction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var mu sync.Mutex
 		slog.Debug("Received RV request", "method", r.Method, "path", r.URL.Path)
@@ -26,9 +26,9 @@ func RvInfoHandler(srv *fdo.Server, rvInfo *[][]fdo.RvInstruction) http.HandlerF
 		case http.MethodGet:
 			getRvData(w, r)
 		case http.MethodPost:
-			createRvData(w, r, rvInfo, srv, &mu)
+			createRvData(w, r, rvInfo, &mu)
 		case http.MethodPut:
-			updateRvData(w, r, rvInfo, srv, &mu)
+			updateRvData(w, r, rvInfo, &mu)
 		default:
 			slog.Debug("Method not allowed", "method", r.Method, "path", r.URL.Path)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -54,7 +54,7 @@ func getRvData(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(rvData)
 }
 
-func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server, mu *sync.Mutex) {
+func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]protocol.RvInstruction, mu *sync.Mutex) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -89,13 +89,12 @@ func createRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	srv.RvInfo = *rvInfo
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rvData)
 }
 
-func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInstruction, srv *fdo.Server, mu *sync.Mutex) {
+func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]protocol.RvInstruction, mu *sync.Mutex) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -130,7 +129,6 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]fdo.RvInst
 		return
 	}
 
-	srv.RvInfo = *rvInfo
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rvData)
 }

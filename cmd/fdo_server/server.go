@@ -66,6 +66,8 @@ var (
 	uploadDir        string
 	uploadReqs       stringList
 	insecureTLS      bool
+	serverCertPath   string
+	serverKeyPath    string
 	printOwnerPubKey string
 	importVoucher    string
 	wgets            stringList
@@ -92,6 +94,8 @@ func init() {
 	serverFlags.StringVar(&resaleKey, "resale-key", "", "The `path` to a PEM-encoded x.509 public key for the next owner")
 	serverFlags.BoolVar(&reuseCred, "reuse-cred", false, "Perform the Credential Reuse Protocol in TO2")
 	serverFlags.BoolVar(&insecureTLS, "insecure-tls", false, "Listen with a self-signed TLS certificate")
+	serverFlags.StringVar(&serverCertPath, "server-cert", "", "Path to server certificate")
+	serverFlags.StringVar(&serverKeyPath, "server-key", "", "Path to server private key")
 	serverFlags.StringVar(&printOwnerPubKey, "print-owner-public", "", "Print owner public key of `type` and exit")
 	serverFlags.StringVar(&importVoucher, "import-voucher", "", "Import a PEM encoded voucher file at `path`")
 	serverFlags.Var(&downloads, "download", "Use fdo.download FSIM for each `file` (flag may be used multiple times)")
@@ -148,15 +152,23 @@ func (s *Server) Start() error {
 	slog.Info("Listening", "local", lis.Addr().String(), "external", s.extAddr)
 
 	if s.useTLS {
-		cert, err := tlsCert(s.state.DB())
-		if err != nil {
-			return err
+		if serverCertPath != "" && serverKeyPath != "" {
+			srv.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+			return srv.ServeTLS(lis, serverCertPath, serverKeyPath)
+		} else {
+			cert, err := tlsCert(s.state.DB())
+			if err != nil {
+				return err
+			}
+			srv.TLSConfig = &tls.Config{
+				MinVersion:   tls.VersionTLS12,
+				Certificates: []tls.Certificate{*cert},
+			}
+			return srv.ServeTLS(lis, "", "")
+
 		}
-		srv.TLSConfig = &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{*cert},
-		}
-		return srv.ServeTLS(lis, "", "")
 	}
 	return srv.Serve(lis)
 }

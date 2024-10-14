@@ -3,7 +3,6 @@ package handlersTest
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/fido-device-onboard/go-fdo"
 	"github.com/fido-device-onboard/go-fdo-server/api/handlers"
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
@@ -31,19 +30,7 @@ func setupTestRvServer(t *testing.T) (*httptest.Server, *sqlite.DB) {
 		t.Fatal(err)
 	}
 
-	fdoServer := &fdo.Server{
-		Tokens:    state,
-		DI:        state,
-		TO0:       state,
-		TO1:       state,
-		TO2:       state,
-		RVBlobs:   state,
-		Vouchers:  state,
-		OwnerKeys: state,
-		RvInfo:    rvInfo,
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(handlers.RvInfoHandler(fdoServer, &rvInfo)))
+	server := httptest.NewServer(http.HandlerFunc(handlers.RvInfoHandler(&rvInfo)))
 	return server, state
 }
 

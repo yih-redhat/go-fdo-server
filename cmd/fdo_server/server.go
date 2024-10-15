@@ -41,6 +41,7 @@ import (
 	"github.com/fido-device-onboard/go-fdo-server/internal/db"
 	"github.com/fido-device-onboard/go-fdo-server/internal/ownerinfo"
 	"github.com/fido-device-onboard/go-fdo-server/internal/rvinfo"
+	"github.com/fido-device-onboard/go-fdo-server/internal/to0"
 	"github.com/fido-device-onboard/go-fdo/cbor"
 	"github.com/fido-device-onboard/go-fdo/custom"
 	"github.com/fido-device-onboard/go-fdo/fsim"
@@ -215,6 +216,9 @@ func server() error { //nolint:gocyclo
 	if err != nil {
 		return err
 	}
+
+	// set tls for TO0
+	to0.SetTo0Tls(useTLS)
 
 	// Retrieve RV info from DB
 	rvInfo, err := rvinfo.FetchRvInfo()

@@ -7,12 +7,16 @@ NETWORK = host
 DEBUG = --debug
 HTTP_ADDR = localhost:8080
 EXT_HTTP_ADDR = 127.0.0.1:8080
-RV_BYPASS =
-TO0_ADDR =
-TO0_GUID =
 UPLOAD_DIR = uploads
 DOWNLOAD_FILES =
 UPLOAD_FILES =
+IMPORT_VOUCHER =
+INSECURE_TLS =
+PRINT_OWNER_PUBLIC =
+RESALE_GUID =
+RESALE_KEY =
+REUSE_CRED =
+WGET_URLS =
 
 # Build the Docker image
 build:
@@ -26,12 +30,16 @@ run:
 		$(DEBUG) \
 		-http $(HTTP_ADDR) \
 		-ext-http $(EXT_HTTP_ADDR) \
-		$(if $(RV_BYPASS),-rv-bypass) \
-		$(if $(TO0_ADDR),-to0 $(TO0_ADDR)) \
-		$(if $(TO0_GUID),-to0-guid $(TO0_GUID)) \
 		-upload-dir $(UPLOAD_DIR) \
 		$(foreach file,$(DOWNLOAD_FILES),-download $(file)) \
-		$(foreach file,$(UPLOAD_FILES),-upload $(file))
+		$(foreach file,$(UPLOAD_FILES),-upload $(file)) \
+		$(if $(IMPORT_VOUCHER),-import-voucher $(IMPORT_VOUCHER)) \
+		$(if $(INSECURE_TLS),-insecure-tls) \
+		$(if $(PRINT_OWNER_PUBLIC),-print-owner-public $(PRINT_OWNER_PUBLIC)) \
+		$(if $(RESALE_GUID),-resale-guid $(RESALE_GUID)) \
+		$(if $(RESALE_KEY),-resale-key $(RESALE_KEY)) \
+		$(if $(REUSE_CRED),-reuse-cred) \
+		$(foreach url,$(WGET_URLS),-wget $(url))
 
 # Docker stop
 stop:

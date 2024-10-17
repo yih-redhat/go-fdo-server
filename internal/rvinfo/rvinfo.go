@@ -109,13 +109,15 @@ func UpdateRvInfo(rvInfo *[][]protocol.RvInstruction, index int, rvMap map[proto
 		}
 	}
 
+	if rvMap[protocol.RVDns] != nil {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVDns, Value: utils.MustMarshal(rvMap[protocol.RVDns].(string))})
+	}
+
 	host := rvMap[protocol.RVIPAddress].(string)
 	if host == "" {
 		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVIPAddress, Value: utils.MustMarshal(net.IP{127, 0, 0, 1})})
 	} else if hostIP := net.ParseIP(host); hostIP.To4() != nil || hostIP.To16() != nil {
 		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVIPAddress, Value: utils.MustMarshal(hostIP)})
-	} else {
-		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVDns, Value: utils.MustMarshal(host)})
 	}
 
 	if rvMap[protocol.RVDevPort] != nil {
@@ -161,7 +163,7 @@ func FetchRvInfo() ([][]protocol.RvInstruction, error) {
 	return rvInfo, nil
 }
 
-func GetRVIPAddress(rvInfo [][]protocol.RvInstruction) (string, error) {
+func GetRVIPAddress(rvInfo [][]protocol.RvInstruction) (string, string, error) {
 	var ipAddress, dnsAddress string
 	var port uint16
 	var proto uint8
@@ -186,18 +188,13 @@ func GetRVIPAddress(rvInfo [][]protocol.RvInstruction) (string, error) {
 				proto = uint8(prot)
 			}
 			if err != nil {
-				return "", fmt.Errorf("invalid format for %v: %v", instruction.Variable, err)
+				return "", "", fmt.Errorf("invalid format for %v: %v", instruction.Variable, err)
 			}
 		}
 	}
 
 	if ipAddress == "" && dnsAddress == "" {
-		return "", fmt.Errorf("no IP address or DNS address found")
-	}
-
-	host := ipAddress
-	if host == "" {
-		host = dnsAddress
+		return "", "", fmt.Errorf("no IP address or DNS address found")
 	}
 
 	scheme := map[uint8]string{
@@ -206,15 +203,34 @@ func GetRVIPAddress(rvInfo [][]protocol.RvInstruction) (string, error) {
 	}[proto]
 
 	if scheme == "" {
-		return "", fmt.Errorf("unsupported protocol")
+		return "", "", fmt.Errorf("unsupported protocol")
 	}
 
-	u := url.URL{
+	var url1, url2 url.URL
+
+	if ipAddress != "" && dnsAddress != "" {
+		url1 = url.URL{
+			Scheme: scheme,
+			Host:   net.JoinHostPort(ipAddress, strconv.Itoa(int(port))),
+		}
+		url2 = url.URL{
+			Scheme: scheme,
+			Host:   net.JoinHostPort(dnsAddress, strconv.Itoa(int(port))),
+		}
+		return url1.String(), url2.String(), nil
+	}
+
+	host := ipAddress
+	if host == "" {
+		host = dnsAddress
+	}
+
+	url1 = url.URL{
 		Scheme: scheme,
 		Host:   net.JoinHostPort(host, strconv.Itoa(int(port))),
 	}
 
-	return u.String(), nil
+	return url1.String(), "", nil
 }
 
 func GetRvInfoFromVoucher(voucherData []byte) ([][]protocol.RvInstruction, error) {

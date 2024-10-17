@@ -6,6 +6,19 @@
 [cbor]: https://www.rfc-editor.org/rfc/rfc8949.html
 [cose]: https://datatracker.ietf.org/doc/html/rfc8152
 
+## Prerequisites
+
+- Go 1.23.0 or later
+- A Go module initialized with `go mod init`
+
+
+The `update-deps.sh` script updates all dependencies in your Go module to their latest versions and cleans up the `go.mod` and `go.sum` files.
+
+To update your dependencies, simply run the script:
+```sh
+./update-deps.sh
+```
+
 ## Building the Example Server Application
 
 The example server application can be built with `go build` directly

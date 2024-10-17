@@ -19,6 +19,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"golang.org/x/time/rate"
 	"iter"
 	"log"
 	"log/slog"
@@ -30,6 +31,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,6 +50,10 @@ import (
 	"github.com/fido-device-onboard/go-fdo/protocol"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
+)
+
+const (
+	minPasswordLength = 8
 )
 
 var serverFlags = flag.NewFlagSet("server", flag.ContinueOnError)
@@ -70,6 +76,8 @@ var (
 	importVoucher    string
 	wgets            stringList
 )
+
+var limiter = rate.NewLimiter(1, 5)
 
 type stringList []string
 
@@ -169,6 +177,16 @@ func server() error { //nolint:gocyclo
 	if dbPath == "" {
 		return errors.New("db flag is required")
 	}
+
+	if dbPass == "" {
+		return errors.New("db password is empty")
+	}
+
+	err := validatePassword(dbPass)
+	if err != nil {
+		return err
+	}
+
 	state, err := sqlite.New(dbPath, dbPass)
 	if err != nil {
 		return err
@@ -578,6 +596,29 @@ func ownerModules(ctx context.Context, guid protocol.GUID, info string, chain []
 			}
 		}
 	}
+}
+
+func validatePassword(dbPass string) error {
+	// Enforce rate limiting
+	if !limiter.Allow() {
+		return errors.New("too many attempts, please slow down")
+	}
+
+	// Check password length
+	if len(dbPass) < minPasswordLength {
+		return fmt.Errorf("password must be at least %d characters long", minPasswordLength)
+	}
+
+	// Check password complexity
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString
+	hasSpecial := regexp.MustCompile(`[!@#~$%^&*()_+{}:"<>?]`).MatchString
+
+	if !hasNumber(dbPass) || !hasUpper(dbPass) || !hasSpecial(dbPass) {
+		return errors.New("password must include a number, an uppercase letter, and a special character")
+	}
+
+	return nil
 }
 
 func tlsCert(db *sql.DB) (*tls.Certificate, error) {

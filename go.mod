@@ -6,6 +6,7 @@ require (
 	github.com/fido-device-onboard/go-fdo v0.0.0-20241004025821-5b174bc99e6f
 	github.com/fido-device-onboard/go-fdo/fsim v0.0.0-20241004025821-5b174bc99e6f
 	github.com/fido-device-onboard/go-fdo/sqlite v0.0.0-20241007193713-bf5656886cbd
+	golang.org/x/time v0.7.0
 	hermannm.dev/devlog v0.4.1
 )
 

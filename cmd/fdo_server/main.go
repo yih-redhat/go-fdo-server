@@ -129,7 +129,7 @@ func validateFlags() error {
 		return fmt.Errorf("invalid import voucher path: %s", importVoucher)
 	}
 
-	if uploadDir != "" && (!isValidPath(uploadDir) || !fileExists(uploadDir)) {
+	if uploadDir != "" && (!isValidPath(uploadDir)) {
 		return fmt.Errorf("invalid upload directory path: %s", uploadDir)
 	}
 

@@ -129,7 +129,7 @@ func validateFlags() error {
 		return fmt.Errorf("invalid import voucher path: %s", importVoucher)
 	}
 
-	if uploadDir != "" && !isValidPath(uploadDir) {
+	if uploadDir != "" && (!isValidPath(uploadDir) || !fileExists(uploadDir)) {
 		return fmt.Errorf("invalid upload directory path: %s", uploadDir)
 	}
 
@@ -137,11 +137,19 @@ func validateFlags() error {
 		if !isValidPath(path) {
 			return fmt.Errorf("invalid download path: %s", path)
 		}
+
+		if !fileExists(path) {
+			return fmt.Errorf("file doesn't exist: %s", path)
+		}
 	}
 
 	for _, path := range uploadReqs {
 		if !isValidPath(path) {
 			return fmt.Errorf("invalid upload request path: %s", path)
+		}
+
+		if !fileExists(path) {
+			return fmt.Errorf("file doesn't exist: %s", path)
 		}
 	}
 
@@ -160,6 +168,11 @@ func isValidPath(p string) bool {
 	}
 	absPath, err := filepath.Abs(p)
 	return err == nil && absPath != ""
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
 }
 
 func isValidHostname(hostname string) bool {

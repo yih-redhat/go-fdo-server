@@ -18,9 +18,15 @@ import (
 	"github.com/fido-device-onboard/go-fdo/sqlite"
 )
 
+var useTLS bool
+
+func SetTo0Tls(value bool) {
+	useTLS = value
+}
+
 func RegisterRvBlob(RvInfo [][]protocol.RvInstruction, to0Guid string, state *sqlite.DB) error {
 
-	to0Addr, err := rvinfo.GetRVIPAddress(RvInfo)
+	to0Addr1, to0Addr2, err := rvinfo.GetRVIPAddress(RvInfo)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return fmt.Errorf("error parsing TO0 Address from RV Info: %w", err)
@@ -46,10 +52,19 @@ func RegisterRvBlob(RvInfo [][]protocol.RvInstruction, to0Guid string, state *sq
 	refresh, err := (&fdo.TO0Client{
 		Vouchers:  state,
 		OwnerKeys: state,
-	}).RegisterBlob(context.Background(), tls.TlsTransport(to0Addr, nil, false), guid, to2Addrs)
+	}).RegisterBlob(context.Background(), tls.TlsTransport(to0Addr1, nil, useTLS), guid, to2Addrs)
 	if err != nil {
-		return fmt.Errorf("error performing to0: %w", err)
+		slog.Debug("failed to", "connect", to0Addr1)
+		slog.Debug("trying to", "connect", to0Addr2)
+		refresh, err = (&fdo.TO0Client{
+			Vouchers:  state,
+			OwnerKeys: state,
+		}).RegisterBlob(context.Background(), tls.TlsTransport(to0Addr2, nil, useTLS), guid, to2Addrs)
+		if err != nil {
+			return fmt.Errorf("error performing to0: %w", err)
+		}
 	}
+
 	slog.Debug("to0 refresh", "duration", time.Duration(refresh)*time.Second)
 
 	return nil

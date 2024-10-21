@@ -153,9 +153,17 @@ func (s *Server) Start() error {
 	slog.Info("Listening", "local", lis.Addr().String(), "external", s.extAddr)
 
 	if s.useTLS {
+
+		preferredCipherSuites := []uint16{
+			tls.TLS_AES_256_GCM_SHA384,                  // TLS v1.3
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,   // TLS v1.2
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, // TLS v1.2
+		}
+
 		if serverCertPath != "" && serverKeyPath != "" {
 			srv.TLSConfig = &tls.Config{
-				MinVersion: tls.VersionTLS12,
+				MinVersion:   tls.VersionTLS12,
+				CipherSuites: preferredCipherSuites,
 			}
 			return srv.ServeTLS(lis, serverCertPath, serverKeyPath)
 		} else {
@@ -166,6 +174,7 @@ func (s *Server) Start() error {
 			srv.TLSConfig = &tls.Config{
 				MinVersion:   tls.VersionTLS12,
 				Certificates: []tls.Certificate{*cert},
+				CipherSuites: preferredCipherSuites,
 			}
 			return srv.ServeTLS(lis, "", "")
 

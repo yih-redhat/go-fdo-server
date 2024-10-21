@@ -86,8 +86,24 @@ func validateFlags() error {
 	}
 
 	if extAddr != "" {
-		if _, err := url.ParseRequestURI(extAddr); err != nil {
+		scheme := "http"
+		if insecureTLS {
+			scheme = "https"
+		}
+		fullURL := scheme + "://" + extAddr
+		parsedURL, err := url.ParseRequestURI(fullURL)
+		if err != nil {
 			return fmt.Errorf("invalid external address: %s", extAddr)
+		}
+		host, port, err := net.SplitHostPort(parsedURL.Host)
+		if err != nil {
+			return fmt.Errorf("invalid external address: %s", extAddr)
+		}
+		if net.ParseIP(host) == nil && !isValidHostname(host) {
+			return fmt.Errorf("invalid external hostname: %s", host)
+		}
+		if port != "" && !isValidPort(port) {
+			return fmt.Errorf("invalid external port: %s", port)
 		}
 	}
 
@@ -113,7 +129,7 @@ func validateFlags() error {
 		}
 	}
 
-	if resaleKey != "" && !isValidPath(resaleKey) {
+	if resaleKey != "" && (!isValidPath(resaleKey) || !fileExists(resaleKey)) {
 		return fmt.Errorf("invalid resale key path: %s", resaleKey)
 	}
 
@@ -136,16 +152,6 @@ func validateFlags() error {
 	for _, path := range downloads {
 		if !isValidPath(path) {
 			return fmt.Errorf("invalid download path: %s", path)
-		}
-
-		if !fileExists(path) {
-			return fmt.Errorf("file doesn't exist: %s", path)
-		}
-	}
-
-	for _, path := range uploadReqs {
-		if !isValidPath(path) {
-			return fmt.Errorf("invalid upload request path: %s", path)
 		}
 
 		if !fileExists(path) {

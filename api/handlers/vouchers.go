@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/fido-device-onboard/go-fdo-server/internal/utils"
 	"net/http"
 
 	"log/slog"
@@ -22,6 +23,10 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	if guidHex == "" {
 		http.Error(w, "GUID is required", http.StatusBadRequest)
 		return
+	}
+
+	if !utils.IsValidGUID(guidHex) {
+		http.Error(w, fmt.Sprintf("Invalid GUID: %s", guidHex), http.StatusBadRequest)
 	}
 
 	guid, err := hex.DecodeString(guidHex)

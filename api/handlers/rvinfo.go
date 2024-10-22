@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"log/slog"
@@ -136,6 +137,12 @@ func updateRvData(w http.ResponseWriter, r *http.Request, rvInfo *[][]protocol.R
 func parseRequestBody(r *http.Request) (db.Data, error) {
 	var rvData db.Data
 	contentType := r.Header.Get("Content-Type")
+
+	if !strings.HasPrefix(contentType, "application/json") && !strings.HasPrefix(contentType, "text/plain") {
+		return rvData, fmt.Errorf("unsupported content type: %s", contentType)
+	}
+	defer r.Body.Close()
+
 	if contentType == "text/plain" {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {

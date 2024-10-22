@@ -19,8 +19,8 @@ import (
 )
 
 func RvInfoHandler(rvInfo *[][]protocol.RvInstruction) http.HandlerFunc {
+	var mu sync.Mutex
 	return func(w http.ResponseWriter, r *http.Request) {
-		var mu sync.Mutex
 		slog.Debug("Received RV request", "method", r.Method, "path", r.URL.Path)
 		switch r.Method {
 		case http.MethodGet:

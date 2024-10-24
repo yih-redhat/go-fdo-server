@@ -69,11 +69,14 @@ func ParseRvMap(rvDirectiveIndex int, rvDirective interface{}) (map[protocol.RvV
 	}
 	for rvPairIndex, rvPair := range nestedItems {
 		keyValue, ok := rvPair.([]interface{})
-		if !ok || len(keyValue) != 2 {
+		if !ok || len(keyValue) < 1 {
 			return nil, fmt.Errorf("error parsing pair %d in item: %v", rvPairIndex, rvPair)
 		}
 		key := keyValue[0]
-		value := keyValue[1]
+		var value interface{} = nil
+		if len(keyValue) > 1 {
+			value = keyValue[1]
+		}
 
 		keyRvVar, ok := key.(float64)
 		if !ok {
@@ -132,13 +135,8 @@ func UpdateRvInfo(rvInfo *[][]protocol.RvInstruction, index int, rvMap map[proto
 		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVDelaysec, Value: utils.MustMarshal(uint16(rvMap[protocol.RVDelaysec].(float64)))})
 	}
 
-	if rvMap[protocol.RVBypass] == nil {
-		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVBypass, Value: utils.MustMarshal(false)})
-	} else {
-		rvBypass := rvMap[protocol.RVBypass].(bool)
-		if rvBypass {
-			newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVBypass})
-		}
+	if _, ok := rvMap[protocol.RVBypass]; ok {
+		newRvInfo[index] = append(newRvInfo[index], protocol.RvInstruction{Variable: protocol.RVBypass})
 	}
 
 	*rvInfo = newRvInfo

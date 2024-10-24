@@ -120,9 +120,14 @@ Send a POST request to create new RV info data, which is stored in the Manufactu
 ```
 curl --location --request POST 'http://localhost:8038/api/v1/rvinfo' \
 --header 'Content-Type: text/plain' \
---data-raw '[[[5,"127.0.0.1"],[3,8041],[14,false],[12,1],[2,"127.0.0.1"],[4,8041]]]'
+--data-raw '[[[5,"127.0.0.1"],[3,8041],[12,1],[2,"127.0.0.1"],[4,8041]]]'
 ```
-
+To bypass the TO1 protocol set RVBypass using
+```
+curl --location --request POST 'http://localhost:8038/api/v1/rvinfo' \
+--header 'Content-Type: text/plain' \
+--data-raw '[[[5,"127.0.0.1"],[3,8041],[14],[12,1],[2,"127.0.0.1"],[4,8041]]]'
+```
 ### Fetch Current RV Info Data
 Send a GET request to fetch the current RV info data:
 ```

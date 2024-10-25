@@ -27,6 +27,7 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !utils.IsValidGUID(guidHex) {
 		http.Error(w, fmt.Sprintf("Invalid GUID: %s", guidHex), http.StatusBadRequest)
+		return
 	}
 
 	guid, err := hex.DecodeString(guidHex)

@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"github.com/fido-device-onboard/go-fdo-server/internal/utils"
 	"net/http"
 	"path"
 
@@ -18,6 +19,10 @@ func To0Handler(rvInfo *[][]protocol.RvInstruction, state *sqlite.DB) http.Handl
 		if to0Guid == "" {
 			http.Error(w, "GUID is required", http.StatusBadRequest)
 			return
+		}
+
+		if !utils.IsValidGUID(to0Guid) {
+			http.Error(w, "GUID is not a valid GUID", http.StatusBadRequest)
 		}
 
 		if to0Guid != "" {

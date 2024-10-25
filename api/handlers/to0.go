@@ -23,12 +23,14 @@ func To0Handler(rvInfo *[][]protocol.RvInstruction, state *sqlite.DB) http.Handl
 
 		if !utils.IsValidGUID(to0Guid) {
 			http.Error(w, "GUID is not a valid GUID", http.StatusBadRequest)
+			return
 		}
 
 		if to0Guid != "" {
 			err := to0.RegisterRvBlob(*rvInfo, to0Guid, state)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 		}
 

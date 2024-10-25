@@ -77,6 +77,7 @@ var (
 	serverKeyPath    string
 	printOwnerPubKey string
 	importVoucher    string
+	cmdDate          bool
 	wgets            stringList
 )
 
@@ -107,6 +108,7 @@ func init() {
 	serverFlags.StringVar(&serverKeyPath, "server-key", "", "Path to server private key")
 	serverFlags.StringVar(&printOwnerPubKey, "print-owner-public", "", "Print owner public key of `type` and exit")
 	serverFlags.StringVar(&importVoucher, "import-voucher", "", "Import a PEM encoded voucher file at `path`")
+	serverFlags.BoolVar(&cmdDate, "command-date", false, "Use fdo.command FSIM to have device run \"date --utc\"")
 	serverFlags.Var(&downloads, "download", "Use fdo.download FSIM for each `file` (flag may be used multiple times)")
 	serverFlags.StringVar(&uploadDir, "upload-dir", "uploads", "The directory `path` to put file uploads")
 	serverFlags.Var(&uploadReqs, "upload", "Use fdo.upload FSIM for each `file` (flag may be used multiple times)")
@@ -199,8 +201,9 @@ func server() error { //nolint:gocyclo
 	if err != nil {
 		return err
 	}
+  
+	state, err := sqlite.Open(dbPath, dbPass)
 
-	state, err := sqlite.New(dbPath, dbPass)
 	if err != nil {
 		return err
 	}
@@ -609,6 +612,17 @@ func ownerModules(ctx context.Context, guid protocol.GUID, info string, chain []
 				}) {
 					return
 				}
+			}
+		}
+
+		if cmdDate && slices.Contains(modules, "fdo.command") {
+			if !yield("fdo.command", &fsim.RunCommand{
+				Command: "date",
+				Args:    []string{"--utc"},
+				Stdout:  os.Stdout,
+				Stderr:  os.Stderr,
+			}) {
+				return
 			}
 		}
 	}

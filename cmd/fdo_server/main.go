@@ -159,16 +159,6 @@ func validateFlags() error {
 		}
 	}
 
-	for _, path := range uploadReqs {
-		if !isValidPath(path) {
-			return fmt.Errorf("invalid upload request path: %s", path)
-		}
-
-		if !fileExists(path) {
-			return fmt.Errorf("file doesn't exist: %s", path)
-		}
-	}
-
 	for _, path := range wgets {
 		if _, err := url.ParseRequestURI(path); err != nil {
 			return fmt.Errorf("invalid wget URL: %s", path)

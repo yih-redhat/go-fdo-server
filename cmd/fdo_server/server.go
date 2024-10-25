@@ -19,6 +19,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"golang.org/x/time/rate"
 	"iter"
 	"log"
 	"log/slog"
@@ -30,6 +31,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,6 +51,10 @@ import (
 	"github.com/fido-device-onboard/go-fdo/protocol"
 	"github.com/fido-device-onboard/go-fdo/serviceinfo"
 	"github.com/fido-device-onboard/go-fdo/sqlite"
+)
+
+const (
+	minPasswordLength = 8
 )
 
 var serverFlags = flag.NewFlagSet("server", flag.ContinueOnError)
@@ -71,8 +77,11 @@ var (
 	serverKeyPath    string
 	printOwnerPubKey string
 	importVoucher    string
+	cmdDate          bool
 	wgets            stringList
 )
+
+var limiter = rate.NewLimiter(1, 5)
 
 type stringList []string
 
@@ -99,6 +108,7 @@ func init() {
 	serverFlags.StringVar(&serverKeyPath, "server-key", "", "Path to server private key")
 	serverFlags.StringVar(&printOwnerPubKey, "print-owner-public", "", "Print owner public key of `type` and exit")
 	serverFlags.StringVar(&importVoucher, "import-voucher", "", "Import a PEM encoded voucher file at `path`")
+	serverFlags.BoolVar(&cmdDate, "command-date", false, "Use fdo.command FSIM to have device run \"date --utc\"")
 	serverFlags.Var(&downloads, "download", "Use fdo.download FSIM for each `file` (flag may be used multiple times)")
 	serverFlags.StringVar(&uploadDir, "upload-dir", "uploads", "The directory `path` to put file uploads")
 	serverFlags.Var(&uploadReqs, "upload", "Use fdo.upload FSIM for each `file` (flag may be used multiple times)")
@@ -153,9 +163,17 @@ func (s *Server) Start() error {
 	slog.Info("Listening", "local", lis.Addr().String(), "external", s.extAddr)
 
 	if s.useTLS {
+
+		preferredCipherSuites := []uint16{
+			tls.TLS_AES_256_GCM_SHA384,                  // TLS v1.3
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,   // TLS v1.2
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, // TLS v1.2
+		}
+
 		if serverCertPath != "" && serverKeyPath != "" {
 			srv.TLSConfig = &tls.Config{
-				MinVersion: tls.VersionTLS12,
+				MinVersion:   tls.VersionTLS12,
+				CipherSuites: preferredCipherSuites,
 			}
 			return srv.ServeTLS(lis, serverCertPath, serverKeyPath)
 		} else {
@@ -166,6 +184,7 @@ func (s *Server) Start() error {
 			srv.TLSConfig = &tls.Config{
 				MinVersion:   tls.VersionTLS12,
 				Certificates: []tls.Certificate{*cert},
+				CipherSuites: preferredCipherSuites,
 			}
 			return srv.ServeTLS(lis, "", "")
 
@@ -182,7 +201,18 @@ func server() error { //nolint:gocyclo
 	if dbPath == "" {
 		return errors.New("db flag is required")
 	}
-	state, err := sqlite.New(dbPath, dbPass)
+
+	if dbPass == "" {
+		return errors.New("db password is empty")
+	}
+
+	err := validatePassword(dbPass)
+	if err != nil {
+		return err
+	}
+  
+	state, err := sqlite.Open(dbPath, dbPass)
+
 	if err != nil {
 		return err
 	}
@@ -593,7 +623,41 @@ func ownerModules(ctx context.Context, guid protocol.GUID, info string, chain []
 				}
 			}
 		}
+
+		if cmdDate && slices.Contains(modules, "fdo.command") {
+			if !yield("fdo.command", &fsim.RunCommand{
+				Command: "date",
+				Args:    []string{"--utc"},
+				Stdout:  os.Stdout,
+				Stderr:  os.Stderr,
+			}) {
+				return
+			}
+		}
 	}
+}
+
+func validatePassword(dbPass string) error {
+	// Enforce rate limiting
+	if !limiter.Allow() {
+		return errors.New("too many attempts, please slow down")
+	}
+
+	// Check password length
+	if len(dbPass) < minPasswordLength {
+		return fmt.Errorf("password must be at least %d characters long", minPasswordLength)
+	}
+
+	// Check password complexity
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString
+	hasSpecial := regexp.MustCompile(`[!@#~$%^&*()_+{}:"<>?]`).MatchString
+
+	if !hasNumber(dbPass) || !hasUpper(dbPass) || !hasSpecial(dbPass) {
+		return errors.New("password must include a number, an uppercase letter, and a special character")
+	}
+
+	return nil
 }
 
 func tlsCert(db *sql.DB) (*tls.Certificate, error) {

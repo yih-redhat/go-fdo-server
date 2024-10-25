@@ -5,6 +5,7 @@ package utils
 
 import (
 	"log/slog"
+	"regexp"
 
 	"github.com/fido-device-onboard/go-fdo/cbor"
 	"github.com/fido-device-onboard/go-fdo/protocol"
@@ -55,4 +56,10 @@ func LogRvVar(index int, key protocol.RvVar, value interface{}) {
 	default:
 		slog.Debug("RV ->", "index", index, "key", key, "value", value)
 	}
+}
+
+func IsValidGUID(guidHex string) bool {
+	// Regular expression to match a 32-character hexadecimal string
+	re := regexp.MustCompile("^[a-fA-F0-9]{32}$")
+	return re.MatchString(guidHex)
 }

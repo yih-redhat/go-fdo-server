@@ -168,6 +168,7 @@ func (s *Server) Start() error {
 			tls.TLS_AES_256_GCM_SHA384,                  // TLS v1.3
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,   // TLS v1.2
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, // TLS v1.2
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, // TLS v1.2
 		}
 
 		if serverCertPath != "" && serverKeyPath != "" {
@@ -210,7 +211,7 @@ func server() error { //nolint:gocyclo
 	if err != nil {
 		return err
 	}
-  
+
 	state, err := sqlite.Open(dbPath, dbPass)
 
 	if err != nil {

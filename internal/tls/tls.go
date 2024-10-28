@@ -19,6 +19,7 @@ func TlsTransport(baseURL string, conf *tls.Config, insecureTLS bool) fdo.Transp
 		tls.TLS_AES_256_GCM_SHA384,                  // TLS v1.3
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,   // TLS v1.2
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, // TLS v1.2
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, // TLS v1.2
 	}
 
 	if conf == nil {

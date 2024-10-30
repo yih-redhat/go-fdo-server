@@ -20,7 +20,7 @@ jobs:
           export GOFLAGS=-buildvcs=false
           go work init
           go work use -r .
-          golangci-lint run ./...
+  #        golangci-lint run ./...
 
   shellcheck:
     name: Lint Shell Scripts

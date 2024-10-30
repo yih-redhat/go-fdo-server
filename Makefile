@@ -7,7 +7,7 @@ NETWORK = host
 DEBUG = --debug
 HTTP_ADDR = localhost:8080
 EXT_HTTP_ADDR = 127.0.0.1:8080
-UPLOAD_DIR = /app-data/
+UPLOAD_DIR = /app
 DOWNLOAD_FILES =
 UPLOAD_FILES =
 IMPORT_VOUCHER =
@@ -49,6 +49,12 @@ stop:
 # Clean up Docker images
 clean:
 	docker rmi $(IMAGE_NAME)
+
+# Copy Upload Files to host
+copy:
+	@for upfile in $(UPLOAD_FILES); do \
+                docker cp $(CONTAINER_NAME):/app/$$upfile ./app-data; \
+                done
 
 # Default target
 all: build run

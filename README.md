@@ -231,6 +231,11 @@ make run
 ```
 This will start the container with the specified network settings and database path.
 
+```console
+make copy
+```
+This will copy the files uploaded using fdo.upload FSIM module to `app-data` folder present in host system.
+
 ### Stoping the Docker Container
 To stop the Docker Container, run:
 ```console

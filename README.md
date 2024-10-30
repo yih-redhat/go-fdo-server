@@ -96,21 +96,21 @@ This guide provides instructions to set up and run the FDO server and client ins
 ### Manufacturer Instance
 Start the FDO server with the test database:
 ```sh
-./fdo_server -http 127.0.0.1:8038 -db ./mfg.db -debug
+./fdo_server -http 127.0.0.1:8038 -db ./mfg.db -db-pass <db-password> -debug
 ```
 This server instance acts as the Manufacturer.
 
 ### RV Instance
 Start another instance of the FDO server on a different port with a different database:
 ```
-./fdo_server -http 127.0.0.1:8041 -db ./rv.db -debug
+./fdo_server -http 127.0.0.1:8041 -db ./rv.db -db-pass <db-password> -debug
 ```
 This server instance acts as the RV.
 
 ### Owner Instance
 Start another instance of the FDO server on a different port with a different database:
 ```
-./fdo_server -http 127.0.0.1:8043 -db ./own.db -debug
+./fdo_server -http 127.0.0.1:8043 -db ./own.db -db-pass <db-password> -debug
 ```
 This server instance acts as the Owner.
 
@@ -197,7 +197,7 @@ The following variables can be set to customize the behavior of the `make run` c
 - `IMAGE_NAME`: The name of the Docker image (default: `fdo_server`).
 - `CONTAINER_NAME`: The name of the Docker container (default: `fdo_server`).
 - `DB_PATH`: The path to the SQLite database file (default: `./test.db`).
-- `DB_PASS`: The SQLite database encryption-at-rest passphrase.
+- `DB_PASS`: The SQLite database encryption-at-rest passphrase. **NOTE**:This field should be populated before starting the container.
 - `NETWORK`: The Docker network setting (default: `host`).
 - `DEBUG`: Debug flag to print HTTP contents (default: `--debug`).
 - `HTTP_ADDR`: The address to listen on (default: `localhost:8080`).

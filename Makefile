@@ -7,7 +7,7 @@ NETWORK = host
 DEBUG = --debug
 HTTP_ADDR = localhost:8080
 EXT_HTTP_ADDR = 127.0.0.1:8080
-UPLOAD_DIR = uploads
+UPLOAD_DIR = /app-data/
 DOWNLOAD_FILES =
 UPLOAD_FILES =
 IMPORT_VOUCHER =
@@ -24,14 +24,14 @@ build:
 
 # Run the Docker container with all flags
 run:
-	docker run --name $(CONTAINER_NAME) -d --network=$(NETWORK) $(IMAGE_NAME) \
+	docker run -v $(PWD)/app-data:/app-data:rw --name $(CONTAINER_NAME) -d --network=$(NETWORK) $(IMAGE_NAME) \
 		-db $(DB_PATH) \
 		$(if $(DB_PASS),-db-pass $(DB_PASS)) \
 		$(DEBUG) \
 		-http $(HTTP_ADDR) \
 		-ext-http $(EXT_HTTP_ADDR) \
 		-upload-dir $(UPLOAD_DIR) \
-		$(foreach file,$(DOWNLOAD_FILES),-download $(file)) \
+		$(foreach file,/app-data/$(DOWNLOAD_FILES),-download $(file)) \
 		$(foreach file,$(UPLOAD_FILES),-upload $(file)) \
 		$(if $(IMPORT_VOUCHER),-import-voucher $(IMPORT_VOUCHER)) \
 		$(if $(INSECURE_TLS),-insecure-tls) \

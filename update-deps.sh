@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -eu
 
 # Update all dependencies to their latest versions
 go get -u ./...

@@ -7,35 +7,104 @@ on:
 name: Continuous integration
 
 jobs:
-  check-spelling:
-    name: Check spelling
+  test-makefile:
+    name: build and test makefile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Check spelling
-        uses: codespell-project/actions-codespell@master
+      - name: Install golang
+        uses: actions/setup-go@v5
         with:
-          builtin: clear,rare,usage,code,en-GB_to_en-US
-          check_filenames: true
-          check_hidden: true
-          ignore_words_file: .github/spellcheck-ignore
-          skip: "./docs/Gemfile.lock,./docs/_config.yml,./.github,./.git"
+          go-version: "1.23"
 
-  commitlint:
-    name: Commitlint
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Generate certs
+        run: |
+          source .github/scripts/fdo-utils.sh
+          generate_certs
+
+      - name: Build and install the binary
+        run: |
+           make && sudo install -D -m 755 go-fdo-server /usr/bin/
+
+      - name: Fail if the source code has changes after build
+        uses: NathanielHill/fail-if-changes@master
+
+      - name: Build and install 'go-fdo-client'
+        run: |
+          source .github/scripts/fdo-utils.sh
+          install_client
+
+      - name: Setup the environment
+        run: |
+          source .github/scripts/fdo-utils.sh
+          setup_env
+
+      - name: Test FIDO Device Onboarding
+        run: |
+          source .github/scripts/fdo-utils.sh
+          test_onboarding
+
+      - name: Test FIDO Resale Protocol
+        run: |
+          source .github/scripts/fdo-utils.sh
+          test_resale
+
+      - name: Get Manufacturer, Rendezvous and Owner server logs after a failed onboarding
+        if: failure()
+        run: |
+          source .github/scripts/fdo-utils.sh
+          get_server_logs
+
+  test-container:
+    name: build and test containers
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Generate certs
+        run: |
+          source .github/scripts/fdo-utils.sh
+          generate_certs
+
+      - name: Build and spawn FDO server containers
+        id: build-and-run-servers
+        uses: hoverkraft-tech/compose-action@v2.3.0
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
+          compose-file: ".github/compose/servers.yaml"
+          services-log-level: debug
+          up-flags: "--build"
+
+      - name: Make sure there are no changes after build
+        uses: NathanielHill/fail-if-changes@master
+
+      - name: Build and install 'go-fdo-client'
+        uses: hoverkraft-tech/compose-action@v2.3.0
         with:
-          node-version: 'latest'
-      - name: Install commitlint dependencies
-        run: npm install commitlint
-      - uses: wagoid/commitlint-github-action@v6
-        env:
-          NODE_PATH: ${{ github.workspace }}/node_modules
-        with:
-          configFile: .github/commitlint.config.mjs
-          failOnWarnings: true
+          compose-file: ".github/compose/client.yaml"
+          services-log-level: debug
+          up-flags: "--build --no-start"
+
+      - name: Setup the environment
+        run: |
+          source .github/scripts/container-utils.sh
+          setup_env
+
+      - name: Test FIDO Device Onboarding
+        run: |
+          source .github/scripts/container-utils.sh
+          test_onboarding
+
+      - name: Test FIDO Resale Protocol
+        run: |
+          source .github/scripts/container-utils.sh
+          test_resale
+
+      - name: Get Manufacturer, Rendezvous and Owner server logs after a failed onboarding
+        if: failure() && steps.build-and-run-servers.outcome == 'success'
+        run: |
+          source .github/scripts/container-utils.sh
+          get_server_logs

@@ -1,6 +1,6 @@
 # FIDO Device Onboard - Go Server
 
-`go-fdo-server` is a server implementation of FIDO Device Onboard specification in Go.
+`go-fdo-server` is a server implementation of FIDO Device Onboard specification in Go..
 
 [fdo]: https://fidoalliance.org/specs/FDO/FIDO-Device-Onboard-PS-v1.1-20220419/FIDO-Device-Onboard-PS-v1.1-20220419.html
 [cbor]: https://www.rfc-editor.org/rfc/rfc8949.html
